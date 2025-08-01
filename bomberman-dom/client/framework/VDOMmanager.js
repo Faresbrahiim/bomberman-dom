@@ -1,4 +1,4 @@
-class VDOMManager {
+export class VDOMManager {
   constructor(container, renderFn, initialState = {}) {
     this.container = container;
     this.oldVNode = null;

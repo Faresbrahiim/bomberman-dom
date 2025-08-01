@@ -1,20 +1,31 @@
 bomberman-dom/
-│
 ├── client/
 │   ├── index.html
-│   ├── main.js            <- class
-│   ├── game.js            <- class
-│   ├── chat.js            <- class 
-│   ├── framework/         <- mini-DOM framework
-│   └── styles.css
+│   ├── main.js                        # Entry point, initializes Main
+│   ├── style.css
+│   ├── framework/
+│   │   ├── VDOMmanager.js            # VNode & VDOMManager class
+│   │   └── utils.js                  # Helper functions (random, keys, etc.)
+│   ├── core/
+│   │   ├── Main.js                   # Main bootstrap logic
+│   │   ├── GameManager.js            # Game loop, state, win condition
+│   │   ├── SocketManager.js          # Client-side WebSocket handling
+│   │   └── ChatManager.js            # Chat input and rendering
+│   ├── game/
+│   │   ├── Map.js                    # Game map grid
+│   │   ├── Tile.js                   # Single tile representation
+│   │   ├── Player.js                 # Player (local & remote)
+│   │   ├── Bomb.js                   # Bomb object logic
+│   │   ├── Explosion.js              # Explosion logic
+│   │   ├── PowerUp.js                # Power-up logic
+│   │   └── AIPlayer.js               # (Optional) AI behavior
 │
 ├── server/
-│   ├── server.js          <- class
-│   └── socketManager.js   <- class
+│   ├── server.js                     # Express server + WebSocket setup
+│   ├── socketManager.js              # Server-side socket logic
+│   └── gameState.js                  # (Optional) Global game state server-side
 │
-├── assets/
-│   └── images, sounds, etc.
-│
+├── package.json
 └── README.md
 
 

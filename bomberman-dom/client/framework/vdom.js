@@ -18,7 +18,7 @@
 // if the child is null or undef ,, means no child ,, just skip 
 // if the child is text  (string) => create text node and append it to the elemnt
 // if child is node ,, appned it and recall the render func
-class VNode {
+export class VNode {
   constructor(tag, attrs = {}, children = []) {
     this.tag = tag.toLowerCase();
     this.attrs = attrs;
