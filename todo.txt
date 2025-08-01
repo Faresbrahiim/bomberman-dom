@@ -1,0 +1,92 @@
+bomberman-dom/
+│
+├── client/
+│   ├── index.html
+│   ├── main.js            <- class
+│   ├── game.js            <- class
+│   ├── chat.js            <- class 
+│   ├── framework/         <- mini-DOM framework
+│   └── styles.css
+│
+├── server/
+│   ├── server.js          <- class
+│   └── socketManager.js   <- class
+│
+├── assets/
+│   └── images, sounds, etc.
+│
+└── README.md
+
+
+------------> state should be respected in frontend and backend
+
+{
+  players: {
+    [id]: {
+      x, y, lives, speed, bombs, flameLength, ...
+    }
+  },
+  map: [...], // grid with walls, blocks, powerups
+  bombs: [...], // {x, y, ownerId, timer}
+}
+
+
+🟢 Phase 1: Setup
+ Create project folder structure
+ Reuse/setup your custom mini DOM framework
+ Create index.html, main.js, and server.js
+ Set up static file server (Node.js + Express or similar)
+ Set up WebSocket server (e.g. using ws)
+
+🟡 Phase 2: Multiplayer Chat (WebSocket "Hello World")
+ Prompt user for nickname on entry screen
+ Connect to WebSocket server with nickname
+ Display player count in lobby
+ Implement chat input + message log
+ Send/receive chat messages through WebSocket
+ Broadcast messages to all clients
+
+🔵 Phase 3: Lobby System
+ Show number of players in lobby
+ Start 10s countdown when 2–4 players connect
+ Auto-start game after countdown
+ Prevent players from joining after game starts
+
+🔴 Phase 4: Core Game Engine
+ Fixed-size grid map (e.g. 13x13)
+ Add indestructible walls in fixed pattern
+ Randomly place destructible blocks
+ Reserve spawn zones in 4 corners
+ Sync map between all clients via WebSocket
+
+🟠 Phase 5: Player Mechanics
+ Add 2–4 players at spawn corners
+ Add keyboard movement (arrow/WASD)
+ Prevent wall/block collision
+ Display player DOM elements on map
+
+🟣 Phase 6: Bomb Mechanics
+ Allow dropping bombs with key press
+ Bomb explodes after 3s
+ Explosion affects blocks and players
+ Add flame powerups (increase explosion range)
+ Add bomb count powerups
+
+🟤 Phase 7: Game Rules & Sync
+ Add lives (3 per player)
+ Respawn logic or death screen
+ Broadcast full game state (positions, bombs, powerups)
+ Keep server as single source of truth
+
+⚫ Phase 8: Finishing Touches
+ Add win condition (last player standing)
+ Restart game option
+ Optimize DOM updates and animations
+ Maintain smooth 60fps with requestAnimationFrame
+
+🟧 (Bonus) Optional Features
+ Ghost after death mode
+ Team mode (2v2)
+ AI bot player(s)
+ Extra powerups (Detonator, Bomb Pass, etc.)
+ Powerup drops on death
