@@ -1,7 +1,7 @@
 import { VNode } from "../framework/vdom.js";
 import { SocketManager } from "./SocketManager.js";
 import { ChatManager } from "./ChatManager.js";
-
+// main UI
 export class Main {
   constructor(container) {
     this.container = container;
@@ -10,7 +10,6 @@ export class Main {
     this.nickname = null;
     this.roomId = null;
     this.countdownSeconds = null;
-
     this.init();
   }
 

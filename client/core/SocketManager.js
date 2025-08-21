@@ -14,11 +14,12 @@ export class SocketManager {
       this.handleMessage(data);
     };
   }
-
+  // on is the event ,, -> callback  _ dtore the func by the key ...  {it's like add event listner almost ,,,} or like on msg but will used separlty from socketmanager
   on(eventName, callback) {
     this.eventHandlers[eventName] = callback;
   }
-
+  // triger -> -> triggeer the event ,,,, and run the func we filled by on  funct 
+  // Keeps message parsing and UI logic separate.
   trigger(eventName, data) {
     if (typeof this.eventHandlers[eventName] === 'function') {
       this.eventHandlers[eventName](data);
