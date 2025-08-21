@@ -100,6 +100,7 @@ export class Main {
     if (el) el.textContent = `Players in lobby: ${count}`;
   }
 
+  
   renderCountdown(seconds) {
     const countdownEl = document.getElementById("countdown");
     if (countdownEl) {
