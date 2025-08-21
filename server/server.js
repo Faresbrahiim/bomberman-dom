@@ -20,6 +20,7 @@ class Room {
     this.status = 'waiting';  // waiting | countdown20 | countdown10 | started
     this.countdownTimer = null;
     this.countdownSeconds = 0;
+    this.seed = null; // <-- new: store random seed for this room
   }
 }
 
@@ -37,7 +38,7 @@ function assignPlayerToRoom(ws, nickname) {
   for (const room of rooms.values()) {
     // status  should be waiting and the countdown should be 20 => so can the player join the room + players in room < 4
     if ((room.status === 'waiting' || room.status === 'countdown20') &&
-        room.clients.size < MAX_PLAYERS_PER_ROOM) {
+      room.clients.size < MAX_PLAYERS_PER_ROOM) {
       room.clients.set(ws, nickname);
       // tracks which room this WebSocket belongs to, useful for sending messages later.
       clientRooms.set(ws, room.id);
@@ -121,9 +122,24 @@ function start10SecCountdown(room) {
 
     if (room.countdownSeconds <= 0) {
       clearInterval(room.countdownTimer);
-      // the the status to start game 
       room.status = 'started';
-      broadcastToRoom(room.id, { type: 'gameStart' });
+
+      // Generate random seed (1–100) if not already set
+      if (room.seed === null) {
+        room.seed = Math.floor(Math.random() * 100) + 1;
+      }
+
+      // Collect player nicknames
+      const players = Array.from(room.clients.values());
+
+
+      // Send seed and players to all clients in the room
+      broadcastToRoom(room.id, {
+        type: 'gameStart',
+        seed: room.seed,
+        players
+      });
+
     }
   }, 1000);
 }

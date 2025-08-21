@@ -1,7 +1,9 @@
 import { VNode } from "../framework/vdom.js";
 import { SocketManager } from "./SocketManager.js";
 import { ChatManager } from "./ChatManager.js";
+// import { GameMap } from "../game/Map.js";
 // main UI
+
 export class Main {
   constructor(container) {
     this.container = container;
@@ -99,7 +101,7 @@ export class Main {
     if (el) el.textContent = `Players in lobby: ${count}`;
   }
 
-  
+
   renderCountdown(seconds) {
     const countdownEl = document.getElementById("countdown");
     if (countdownEl) {
@@ -111,13 +113,6 @@ export class Main {
   }
 
   renderGame() {
-    // Replace lobby UI with game UI
-    const vnode = new VNode("div", { class: "game" }, [
-      new VNode("h2", {}, ["Game Started!"]),
-      // instance of the claa map ... game 
-      // TODO: Render your game map, players, bombs, etc.
-    ]);
-    this.container.innerHTML = "";
-    this.container.appendChild(vnode.render(vnode));
+    document.getElementById('app').textContent = "hna trandra map w chaat"
   }
 }

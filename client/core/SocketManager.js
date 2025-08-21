@@ -42,6 +42,8 @@ export class SocketManager {
         this.trigger('countdownTick', data.seconds);
         break;
       case 'gameStart':
+        console.log('Seed:', data.seed);
+        console.log('Players in room:', data.players);
         this.trigger('gameStart');
         break;
       case 'roomJoined':
