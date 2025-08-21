@@ -3,12 +3,12 @@ export class SocketManager {
     this.nickname = nickname;
     this.eventHandlers = {};
     this.ws = new WebSocket('ws://localhost:3000');
-
+    // when the socket open send join msf to backend -> so can join room or assign room 
     this.ws.onopen = () => {
       this.send({ type: 'join', nickname: this.nickname });
       this.trigger('connected');
     };
-
+    // when msg comes from backend ,,.. 
     this.ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       this.handleMessage(data);
@@ -28,7 +28,7 @@ export class SocketManager {
   send(data) {
     this.ws.send(JSON.stringify(data));
   }
-
+  // data == msg
   handleMessage(data) {
     switch (data.type) {
       case 'playerCount':

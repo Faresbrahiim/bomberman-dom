@@ -12,7 +12,7 @@ const server = http.createServer(app);
 app.use(express.static(path.join(__dirname, '../client')));
 const wss = new WebSocketServer({ server });
 
-// --- Room class ---
+// --- Room class --- ,, is construct the room with the websocket and  their nickname ,, when create instance means create room 
 class Room {
   constructor(id) {
     this.id = id;
@@ -24,29 +24,37 @@ class Room {
 }
 
 // --- Room tracking ---
-const rooms = new Map();        // Map<roomId, Room>
-const clientRooms = new Map();  // Map<ws, roomId>
+const rooms = new Map();        // Map<roomId, Room> => roomis : roomName .. active rooms
+const clientRooms = new Map();  // Map<ws, roomId> 
 let roomCounter = 1;
 
-const MAX_ROOMS = 3;
+const MAX_ROOMS = 100;
 const MAX_PLAYERS_PER_ROOM = 4;
 
 // --- Assign player to a room ---
 function assignPlayerToRoom(ws, nickname) {
+  // check if the players can join rooms
   for (const room of rooms.values()) {
+    // status  should be waiting and the countdown should be 20 => so can the player join the room + players in room < 4
     if ((room.status === 'waiting' || room.status === 'countdown20') &&
         room.clients.size < MAX_PLAYERS_PER_ROOM) {
       room.clients.set(ws, nickname);
+      // tracks which room this WebSocket belongs to, useful for sending messages later.
       clientRooms.set(ws, room.id);
       return room;
     }
   }
-
+  // if none of rooms can accept the player need to generate new room 
   if (rooms.size < MAX_ROOMS) {
+    // create new instance or romm (room) with the given id 
     const newRoom = new Room(`room${roomCounter++}`);
+    // add the current player .......... the the new room
     newRoom.clients.set(ws, nickname);
+    // set the  new room in rooms 
     rooms.set(newRoom.id, newRoom);
+    // websocker tracking
     clientRooms.set(ws, newRoom.id);
+    // return the room 
     return newRoom;
   }
 
@@ -54,33 +62,38 @@ function assignPlayerToRoom(ws, nickname) {
   return null;
 }
 
-// --- Broadcast to room ---
+// --- Broadcast to room ---//
+// give the id and the data to to brodcast it 
 function broadcastToRoom(roomId, data) {
+  // get the room by id from the map
   const room = rooms.get(roomId);
   if (!room) return;
   const json = JSON.stringify(data);
+  // loop for the ws in the room -> and brodcast the data...
   for (const client of room.clients.keys()) {
     if (client.readyState === 1) client.send(json);
   }
 }
-
+// brodcast player count to speciefic room 
 function broadcastPlayerCount(roomId) {
   const room = rooms.get(roomId);
   if (!room) return;
   broadcastToRoom(roomId, { type: 'playerCount', count: room.clients.size });
 }
-
+// brodcast the room to the message 
 function broadcastChatMessage(roomId, nickname, message) {
   broadcastToRoom(roomId, { type: 'chat', message: `${nickname}: ${message}` });
 }
 
-// --- Countdown logic ---
+// --- Countdown logic --- for 20 seconds
+// accept the room object
 function start20SecCountdown(room) {
   if (room.status !== 'waiting' && room.status !== 'countdown20') return;
   room.status = 'countdown20';
   room.countdownSeconds = 20;
 
   room.countdownTimer = setInterval(() => {
+    // each time the set interval run ,,,, decrease -1 sc and brodcast it 
     room.countdownSeconds--;
     broadcastToRoom(room.id, { type: 'countdownTick', seconds: room.countdownSeconds });
 
@@ -108,6 +121,7 @@ function start10SecCountdown(room) {
 
     if (room.countdownSeconds <= 0) {
       clearInterval(room.countdownTimer);
+      // the the status to start game 
       room.status = 'started';
       broadcastToRoom(room.id, { type: 'gameStart' });
     }
