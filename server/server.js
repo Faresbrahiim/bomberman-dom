@@ -16,31 +16,32 @@ const wss = new WebSocketServer({ server });
 class Room {
   constructor(id) {
     this.id = id;
-    this.clients = new Map(); // ws -> nickname
-    this.status = 'waiting';  // waiting | countdown | started
+    this.clients = new Map(); // Map<ws, nickname>
+    this.status = 'waiting';  // waiting | countdown20 | countdown10 | started
     this.countdownTimer = null;
     this.countdownSeconds = 0;
   }
 }
 
-const rooms = new Map();        // roomId -> Room
-const clientRooms = new Map();  // ws -> roomId
+// --- Room tracking ---
+const rooms = new Map();        // Map<roomId, Room>
+const clientRooms = new Map();  // Map<ws, roomId>
 let roomCounter = 1;
+
 const MAX_ROOMS = 3;
 const MAX_PLAYERS_PER_ROOM = 4;
 
 // --- Assign player to a room ---
 function assignPlayerToRoom(ws, nickname) {
-  // Join a room with space that hasn't started yet
   for (const room of rooms.values()) {
-    if (room.clients.size < MAX_PLAYERS_PER_ROOM && room.status !== 'started') {
+    if ((room.status === 'waiting' || room.status === 'countdown20') &&
+        room.clients.size < MAX_PLAYERS_PER_ROOM) {
       room.clients.set(ws, nickname);
       clientRooms.set(ws, room.id);
       return room;
     }
   }
 
-  // If less than MAX_ROOMS exist, create new room
   if (rooms.size < MAX_ROOMS) {
     const newRoom = new Room(`room${roomCounter++}`);
     newRoom.clients.set(ws, nickname);
@@ -49,11 +50,11 @@ function assignPlayerToRoom(ws, nickname) {
     return newRoom;
   }
 
-  // All rooms full
+  // All rooms full or countdown10/started → cannot join
   return null;
 }
 
-// --- Broadcast to a room ---
+// --- Broadcast to room ---
 function broadcastToRoom(roomId, data) {
   const room = rooms.get(roomId);
   if (!room) return;
@@ -63,23 +64,43 @@ function broadcastToRoom(roomId, data) {
   }
 }
 
-// --- Player count ---
 function broadcastPlayerCount(roomId) {
   const room = rooms.get(roomId);
   if (!room) return;
   broadcastToRoom(roomId, { type: 'playerCount', count: room.clients.size });
 }
 
-// --- Chat ---
 function broadcastChatMessage(roomId, nickname, message) {
   broadcastToRoom(roomId, { type: 'chat', message: `${nickname}: ${message}` });
 }
 
-// --- Countdown ---
-function startCountdown(room) {
-  if (room.status !== 'waiting') return;
-  room.status = 'countdown';
+// --- Countdown logic ---
+function start20SecCountdown(room) {
+  if (room.status !== 'waiting' && room.status !== 'countdown20') return;
+  room.status = 'countdown20';
   room.countdownSeconds = 20;
+
+  room.countdownTimer = setInterval(() => {
+    room.countdownSeconds--;
+    broadcastToRoom(room.id, { type: 'countdownTick', seconds: room.countdownSeconds });
+
+    // If 4 players join during 20s countdown → skip to 10s countdown
+    if (room.clients.size === MAX_PLAYERS_PER_ROOM) {
+      clearInterval(room.countdownTimer);
+      start10SecCountdown(room);
+    }
+
+    // If 20s reached → start 10s countdown
+    if (room.countdownSeconds <= 0) {
+      clearInterval(room.countdownTimer);
+      start10SecCountdown(room);
+    }
+  }, 1000);
+}
+
+function start10SecCountdown(room) {
+  room.status = 'countdown10';
+  room.countdownSeconds = 10;
 
   room.countdownTimer = setInterval(() => {
     room.countdownSeconds--;
@@ -93,11 +114,7 @@ function startCountdown(room) {
   }, 1000);
 }
 
-// --- Adjust countdown if room fills early ---
-function adjustCountdownForFullRoom(room) {
-  if (room.countdownSeconds > 10) room.countdownSeconds = 10;
-}
-
+// --- WebSocket connections ---
 wss.on('connection', (ws) => {
   console.log('New player connected');
 
@@ -116,22 +133,20 @@ wss.on('connection', (ws) => {
 
           console.log(`Player ${data.nickname} joined ${room.id}`);
           ws.send(JSON.stringify({ type: 'roomJoined', roomId: room.id }));
-
           broadcastPlayerCount(room.id);
 
-          // Start game immediately if room is full
-          if (room.clients.size === MAX_PLAYERS_PER_ROOM && room.status !== 'started') {
-            clearInterval(room.countdownTimer);
-            room.status = 'started';
-            broadcastToRoom(room.id, { type: 'gameStart' });
-          }
-          // Otherwise, start countdown if 2+ players
-          else if (room.clients.size >= 2 && room.status === 'waiting') {
-            startCountdown(room);
-          }
-          // If room reaches 4 during countdown, shorten it
-          else if (room.clients.size === MAX_PLAYERS_PER_ROOM && room.status === 'countdown') {
-            adjustCountdownForFullRoom(room);
+          // Decide countdown
+          if (room.clients.size === 1) {
+            // Only 1 player → do nothing
+          } else if (room.clients.size >= 2 && room.clients.size < MAX_PLAYERS_PER_ROOM) {
+            // 2 or 3 players → start 20s countdown if not started
+            if (room.status === 'waiting') start20SecCountdown(room);
+          } else if (room.clients.size === MAX_PLAYERS_PER_ROOM) {
+            // 4 players → start 10s countdown immediately
+            if (room.status !== 'started' && room.status !== 'countdown10') {
+              clearInterval(room.countdownTimer);
+              start10SecCountdown(room);
+            }
           }
 
           break;
@@ -162,6 +177,7 @@ wss.on('connection', (ws) => {
       if (room) {
         room.clients.delete(ws);
 
+        // If room empty, delete it
         if (room.clients.size === 0) {
           clearInterval(room.countdownTimer);
           rooms.delete(roomId);
