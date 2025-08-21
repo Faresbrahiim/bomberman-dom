@@ -112,7 +112,30 @@ export class Main {
     }
   }
 
-  renderGame() {
-    document.getElementById('app').textContent = "hna trandra map w chaat"
-  }
+ renderGame() {
+    this.container.innerHTML = ""; // clear previous view
+
+    // Main game layout container
+    const gameLayout = document.createElement("div");
+    gameLayout.style.display = "flex";
+    gameLayout.style.gap = "20px";
+
+    // Game map container
+    const mapContainer = document.createElement("div");
+    mapContainer.id = "gameMapContainer";
+    gameLayout.appendChild(mapContainer);
+
+    // Chat container
+    const chatContainer = document.createElement("div");
+    chatContainer.id = "chatContainer";
+    chatContainer.style.width = "300px";
+    chatContainer.style.height = "600px";
+    chatContainer.style.overflowY = "auto";
+    chatContainer.style.border = "1px solid #ccc";
+    chatContainer.style.padding = "10px";
+    gameLayout.appendChild(chatContainer);
+
+    this.container.appendChild(gameLayout);
+    this.chatManager = new ChatManager(chatContainer, this.socketManager);
+}
 }
