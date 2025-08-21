@@ -1,11 +1,12 @@
 export class VDOMManager {
   constructor(container, renderFn, initialState = {}) {
     this.container = container;
-    this.oldVNode = null;
     this.renderFn = renderFn;
     this.state = initialState;
+    this.oldVNode = null;
   }
 
+  // Merge new state and re-render
   setState = (newState) => {
     this.state = { ...this.state, ...newState };
     const newVNode = this.renderFn(this.state, this.setState);
@@ -13,90 +14,92 @@ export class VDOMManager {
     this.oldVNode = newVNode;
   };
 
+  // Initial mount
   mount() {
     this.oldVNode = this.renderFn(this.state, this.setState);
     this.container.appendChild(this.oldVNode.render());
   }
 }
 
+// -------------------------
+// VDOM diffing and patching
+// -------------------------
 function updateElement(parent, newVNode, oldVNode, index = 0) {
   const existingEl = parent.childNodes[index];
 
+  // Remove node
   if (!newVNode && oldVNode) {
     if (existingEl) parent.removeChild(existingEl);
     return;
   }
+
+  // Add node
   if (newVNode && !oldVNode) {
     parent.appendChild(createDOMNode(newVNode));
     return;
   }
+
+  // Both null
   if (!newVNode && !oldVNode) return;
 
+  // Replace if changed
   if (changed(newVNode, oldVNode)) {
     parent.replaceChild(createDOMNode(newVNode), existingEl);
     return;
   }
 
+  // Text node update
   if (typeof newVNode === "string") {
-    if (existingEl.textContent !== newVNode) {
-      existingEl.textContent = newVNode;
-    }
+    if (existingEl.textContent !== newVNode) existingEl.textContent = newVNode;
     return;
   }
 
+  // Update attributes
   updateAttributes(existingEl, newVNode.attrs, oldVNode.attrs);
 
   const newChildren = newVNode.children || [];
   const oldChildren = oldVNode.children || [];
 
-  // Efficient keyed reconciliation
   reconcileKeyedChildren(existingEl, newChildren, oldChildren);
 }
 
+// -------------------------
+// Efficient keyed reconciliation
+// -------------------------
 function reconcileKeyedChildren(parentEl, newChildren, oldChildren) {
-  // Check if we have keys
   const hasKeys =
-    newChildren.some((child) => child?.attrs?.key != null) ||
-    oldChildren.some((child) => child?.attrs?.key != null);
+    newChildren.some(c => c?.attrs?.key != null) ||
+    oldChildren.some(c => c?.attrs?.key != null);
 
+  // Simple index-based diffing if no keys
   if (!hasKeys) {
-    // No keys - CORRECTED simple index-based diffing
-    const newLen = newChildren.length;
-    const oldLen = oldChildren.length;
-    const commonLen = Math.min(newLen, oldLen);
+    const minLen = Math.min(newChildren.length, oldChildren.length);
 
-    // 1. Update the nodes that exist in both old and new VDOM
-    for (let i = 0; i < commonLen; i++) {
+    for (let i = 0; i < minLen; i++) {
       updateElement(parentEl, newChildren[i], oldChildren[i], i);
     }
 
-    // 2. Add any new nodes if the new list is longer
-    if (newLen > oldLen) {
-      for (let i = commonLen; i < newLen; i++) {
-        updateElement(parentEl, newChildren[i], null, i);
-      }
+    // Add new nodes
+    for (let i = minLen; i < newChildren.length; i++) {
+      updateElement(parentEl, newChildren[i], null, i);
     }
-    // 3. Remove surplus nodes if the old list was longer
-    else if (oldLen > newLen) {
-      // Iterate backwards to avoid issues with the live NodeList
-      for (let i = oldLen - 1; i >= newLen; i--) {
-        const childToRemove = parentEl.childNodes[i];
-        if (childToRemove) {
-          parentEl.removeChild(childToRemove);
-        }
-      }
+
+    // Remove surplus nodes
+    for (let i = oldChildren.length - 1; i >= newChildren.length; i--) {
+      const child = parentEl.childNodes[i];
+      if (child) parentEl.removeChild(child);
     }
     return;
   }
 
-  // Build key maps for efficient lookups
+  // Keyed reconciliation
   const oldKeyToElement = new Map();
   const oldKeyToVNode = new Map();
 
-  oldChildren.forEach((child, index) => {
+  oldChildren.forEach((child, idx) => {
     const key = child?.attrs?.key;
     if (key != null) {
-      oldKeyToElement.set(key, parentEl.childNodes[index]);
+      oldKeyToElement.set(key, parentEl.childNodes[idx]);
       oldKeyToVNode.set(key, child);
     }
   });
@@ -104,66 +107,48 @@ function reconcileKeyedChildren(parentEl, newChildren, oldChildren) {
   const newElements = [];
   const usedKeys = new Set();
 
-  // Process each new child
-  newChildren.forEach((newChild, newIndex) => {
+  newChildren.forEach((newChild, idx) => {
     const key = newChild?.attrs?.key;
 
     if (key != null && oldKeyToElement.has(key)) {
-      // Reuse existing element with this key
-      const existingElement = oldKeyToElement.get(key);
+      const el = oldKeyToElement.get(key);
       const oldVNode = oldKeyToVNode.get(key);
 
-      // Update the existing element in place
-      updateAttributes(existingElement, newChild.attrs, oldVNode.attrs);
-      reconcileKeyedChildren(
-        existingElement,
-        newChild.children || [],
-        oldVNode.children || []
-      );
+      updateAttributes(el, newChild.attrs, oldVNode.attrs);
+      reconcileKeyedChildren(el, newChild.children || [], oldVNode.children || []);
 
-      newElements[newIndex] = existingElement;
+      newElements[idx] = el;
       usedKeys.add(key);
     } else {
-      // Create new element
-      newElements[newIndex] = createDOMNode(newChild);
+      newElements[idx] = createDOMNode(newChild);
     }
   });
 
-  // Remove unused elements
-  oldChildren.forEach((oldChild, index) => {
-    const key = oldChild?.attrs?.key;
+  // Remove unused old elements
+  oldChildren.forEach((child, idx) => {
+    const key = child?.attrs?.key;
     if (key != null && !usedKeys.has(key)) {
-      const elementToRemove = parentEl.childNodes[index];
-      if (elementToRemove && elementToRemove.parentNode === parentEl) {
-        parentEl.removeChild(elementToRemove);
-      }
+      const el = parentEl.childNodes[idx];
+      if (el && el.parentNode === parentEl) parentEl.removeChild(el);
     }
   });
 
-  // Reorder elements to match new order
-  newElements.forEach((element, targetIndex) => {
-    const currentElement = parentEl.childNodes[targetIndex];
-    if (currentElement !== element) {
-      if (element.parentNode === parentEl) {
-        // Move existing element
-        parentEl.insertBefore(element, currentElement || null);
+  // Reorder / insert elements
+  newElements.forEach((el, idx) => {
+    const currentEl = parentEl.childNodes[idx];
+    if (currentEl !== el) {
+      if (el.parentNode === parentEl) {
+        parentEl.insertBefore(el, currentEl || null);
       } else {
-        // Insert new element
-        parentEl.insertBefore(element, currentElement || null);
+        parentEl.insertBefore(el, currentEl || null);
       }
     }
   });
 
-  // Remove any remaining extra elements
+  // Remove extra children
   while (parentEl.childNodes.length > newChildren.length) {
     parentEl.removeChild(parentEl.lastChild);
   }
-}
-
-function createDOMNode(vnode) {
-  if (vnode === null || vnode === undefined) return document.createTextNode("");
-  if (typeof vnode === "string") return document.createTextNode(vnode);
-  return vnode.render();
 }
 
 function changed(node1, node2) {
@@ -176,28 +161,36 @@ function changed(node1, node2) {
 function updateAttributes(el, newAttrs = {}, oldAttrs = {}) {
   for (const key in oldAttrs) {
     if (!(key in newAttrs)) {
-      if (key.startsWith("on") && typeof oldAttrs[key] === "function") {
-        el.removeEventListener(key.slice(2).toLowerCase(), oldAttrs[key]);
-      } else {
-        el.removeAttribute(key);
-      }
+      el.removeAttribute(key);
+      if (key in el) el[key] = "";
     }
   }
 
-  for (const key in newAttrs) {
-    const newVal = newAttrs[key];
-    const oldVal = oldAttrs[key];
-    if (newVal === oldVal) continue;
-
-    if (key.startsWith("on") && typeof newVal === "function") {
-      if (oldVal) el.removeEventListener(key.slice(2).toLowerCase(), oldVal);
-      el.addEventListener(key.slice(2).toLowerCase(), newVal);
+  for (const [key, value] of Object.entries(newAttrs)) {
+    if (key.startsWith("on") && typeof value === "function") {
+      el[key] = value;
+    } else if (key === "disabled") {
+      el.disabled = Boolean(value);
+      if (!value) el.removeAttribute("disabled");
     } else if (key === "checked") {
-      el.checked = Boolean(newVal);
+      el.checked = Boolean(value);
+      if (!value) el.removeAttribute("checked");
     } else if (key === "value" && el.tagName === "INPUT") {
-      if (el.value !== newVal) el.value = newVal;
-    } else if (key !== "key") {
-      el.setAttribute(key, newVal);
+      el.value = value;
+      el.setAttribute("value", value);
+    } else {
+      el.setAttribute(key, value);
     }
   }
+}
+function createDOMNode(vnode) {
+  if (vnode == null) return document.createTextNode("");
+  if (typeof vnode === "string") return document.createTextNode(vnode);
+  const el = document.createElement(vnode.tag);
+  updateAttributes(el, vnode.attrs, {});
+
+  (vnode.children || []).forEach(child => {
+    el.appendChild(createDOMNode(child));
+  });
+  return el;
 }
