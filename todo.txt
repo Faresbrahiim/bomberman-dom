@@ -179,13 +179,13 @@ Bomb.explode() is called
 Explosion is triggered
 Explosion.affectTiles() and .affectPlayers() modify state
 
- 🎁 PowerUps
+🎁 PowerUps
 A Tile hit by flame may spawn a PowerUp
 If a player moves over it:
 PowerUp.applyTo(player) is called
 Player's speed/bombs/flames updated
 
-6. ⚰️ Player Dies
+⚰️ Player Dies
 If caught in an explosion:
 Player.loseLife()
 If lives == 0 → remove from game
@@ -205,3 +205,8 @@ GameManager detects 1 player left
 Broadcasts "Game Over"
 Clients show result screen
 Option to restart or leave
+
+| Action                                                 | You use     |
+| ------------------------------------------------------ | ----------- |
+| 👉 Send a message **to the server**                    | `send()`    |
+| 👂 Receive a message **from the server** and handle it | `trigger()` |

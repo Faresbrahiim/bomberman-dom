@@ -1,0 +1,24 @@
+{
+  "name": "bomberman-dom",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Faresbrahiim/bomberman-dom.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Faresbrahiim/bomberman-dom/issues"
+  },
+  "homepage": "https://github.com/Faresbrahiim/bomberman-dom#readme",
+  "description": "",
+  "dependencies": {
+    "express": "^5.1.0",
+    "ws": "^8.18.3"
+  }
+}
