@@ -1,6 +1,8 @@
 import { VNode } from "../framework/vdom.js";
 import { SocketManager } from "./SocketManager.js";
 import { ChatManager } from "./ChatManager.js";
+// import { GameMap } from "../game/Map.js";
+// main UI
 
 export class Main {
   constructor(container) {
@@ -10,7 +12,6 @@ export class Main {
     this.nickname = null;
     this.roomId = null;
     this.countdownSeconds = null;
-
     this.init();
   }
 
@@ -100,6 +101,7 @@ export class Main {
     if (el) el.textContent = `Players in lobby: ${count}`;
   }
 
+
   renderCountdown(seconds) {
     const countdownEl = document.getElementById("countdown");
     if (countdownEl) {
@@ -110,14 +112,30 @@ export class Main {
     }
   }
 
-  renderGame() {
-    // Replace lobby UI with game UI
-    const vnode = new VNode("div", { class: "game" }, [
-      new VNode("h2", {}, ["Game Started!"]),
-      // instance of the claa map ... game 
-      // TODO: Render your game map, players, bombs, etc.
-    ]);
-    this.container.innerHTML = "";
-    this.container.appendChild(vnode.render(vnode));
-  }
+ renderGame() {
+    this.container.innerHTML = ""; // clear previous view
+
+    // Main game layout container
+    const gameLayout = document.createElement("div");
+    gameLayout.style.display = "flex";
+    gameLayout.style.gap = "20px";
+
+    // Game map container
+    const mapContainer = document.createElement("div");
+    mapContainer.id = "gameMapContainer";
+    gameLayout.appendChild(mapContainer);
+
+    // Chat container
+    const chatContainer = document.createElement("div");
+    chatContainer.id = "chatContainer";
+    chatContainer.style.width = "300px";
+    chatContainer.style.height = "600px";
+    chatContainer.style.overflowY = "auto";
+    chatContainer.style.border = "1px solid #ccc";
+    chatContainer.style.padding = "10px";
+    gameLayout.appendChild(chatContainer);
+
+    this.container.appendChild(gameLayout);
+    this.chatManager = new ChatManager(chatContainer, this.socketManager);
+}
 }
