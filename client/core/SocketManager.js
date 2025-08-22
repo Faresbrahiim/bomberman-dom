@@ -3,22 +3,26 @@ export class SocketManager {
     this.nickname = nickname;
     this.eventHandlers = {};
     this.ws = new WebSocket('ws://localhost:3000');
-    // when the socket open send join msf to backend -> so can join room or assign room 
+    
+    // when the socket open send join msg to backend -> so can join room or assign room 
     this.ws.onopen = () => {
       this.send({ type: 'join', nickname: this.nickname });
-      this.trigger('connected');
+      // DON'T trigger 'connected' here - wait for server confirmation
     };
+    
     // when msg comes from backend ,,.. 
     this.ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       this.handleMessage(data);
     };
   }
-  // on is the event ,, -> callback  _ dtore the func by the key ...  {it's like add event listner almost ,,,} or like on msg but will used separlty from socketmanager
+
+  // on is the event ,, -> callback  _ store the func by the key ...  {it's like add event listener almost ,,,} or like on msg but will used separately from socketmanager
   on(eventName, callback) {
     this.eventHandlers[eventName] = callback;
   }
-  // triger -> -> triggeer the event ,,,, and run the func we filled by on  funct 
+
+  // trigger -> -> trigger the event ,,,, and run the func we filled by on funct 
   // Keeps message parsing and UI logic separate.
   trigger(eventName, data) {
     if (typeof this.eventHandlers[eventName] === 'function') {
@@ -29,8 +33,11 @@ export class SocketManager {
   send(data) {
     this.ws.send(JSON.stringify(data));
   }
+
   // data == msg
   handleMessage(data) {
+    console.log('Received message:', data); // DEBUG: see what messages we get
+    
     switch (data.type) {
       case 'playerCount':
         this.trigger('playerCountUpdate', data.count);
@@ -47,15 +54,17 @@ export class SocketManager {
         this.trigger('gameStart');
         break;
       case 'roomJoined':
+        console.log('Room joined successfully, triggering connected'); // DEBUG
+        // THIS is when we know join was successful - trigger connected now
+        this.trigger('connected');
         this.trigger('roomJoined', data.roomId);
         break;
       case 'invalidNickname':
-        console.log("invalid nickname ?" , data.reason);
+        console.log("Invalid nickname:", data.reason);
         this.trigger('invalidNickname', data.reason || 'Invalid nickname');
-        // optional: keep socket open so user can try again without reloading
         break;
-
       case 'roomFull':
+        console.log("Room full");
         this.trigger('roomFull');
         break;
       default:
