@@ -32,6 +32,25 @@ let roomCounter = 1;
 const MAX_ROOMS = 100;
 const MAX_PLAYERS_PER_ROOM = 4;
 
+// --- Nickname validation helper ---
+function validateNickname(nickname, room) {
+  // basic checks: non-empty, no "<3", length between 3–16, alphanumeric+underscore only
+  if (!nickname || typeof nickname !== 'string') return false;
+  if (nickname.includes('<3')) return false;
+  if (nickname.length < 3 || nickname.length > 16) return false;
+  if (!/^[a-zA-Z0-9_]+$/.test(nickname)) return false;
+
+  // duplicate check inside the same room
+  if (room) {
+    for (const existingName of room.clients.values()) {
+      if (existingName.toLowerCase() === nickname.toLowerCase()) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 // --- Assign player to a room ---
 function assignPlayerToRoom(ws, nickname) {
   // check if the players can join rooms
@@ -39,6 +58,13 @@ function assignPlayerToRoom(ws, nickname) {
     // status  should be waiting and the countdown should be 20 => so can the player join the room + players in room < 4
     if ((room.status === 'waiting' || room.status === 'countdown20') &&
       room.clients.size < MAX_PLAYERS_PER_ROOM) {
+      
+      // --- nickname validation for existing room ---
+      if (!validateNickname(nickname, room)) {
+        ws.send(JSON.stringify({ type: 'invalidNickname', reason: 'Nickname invalid or already taken' }));
+        return null;
+      }
+
       room.clients.set(ws, nickname);
       // tracks which room this WebSocket belongs to, useful for sending messages later.
       clientRooms.set(ws, room.id);
@@ -49,6 +75,13 @@ function assignPlayerToRoom(ws, nickname) {
   if (rooms.size < MAX_ROOMS) {
     // create new instance or romm (room) with the given id 
     const newRoom = new Room(`room${roomCounter++}`);
+
+    // --- nickname validation for new room (still applies) ---
+    if (!validateNickname(nickname, newRoom)) {
+      ws.send(JSON.stringify({ type: 'invalidNickname', reason: 'Nickname invalid' }));
+      return null;
+    }
+
     // add the current player .......... the the new room
     newRoom.clients.set(ws, nickname);
     // set the  new room in rooms 
@@ -157,7 +190,7 @@ wss.on('connection', (ws) => {
           const room = assignPlayerToRoom(ws, data.nickname);
 
           if (!room) {
-            ws.send(JSON.stringify({ type: 'roomFull' }));
+            // if assign failed → already responded with invalidNickname or roomFull
             return;
           }
 
