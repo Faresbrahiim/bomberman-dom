@@ -9,6 +9,7 @@ export class GameManager {
     // Main game loop update
   }
 
+  
   checkWinCondition() {
     // Check if a player won
   }
