@@ -49,6 +49,15 @@ export class SocketManager {
       case 'roomJoined':
         this.trigger('roomJoined', data.roomId);
         break;
+      case 'invalidNickname':
+        console.log("invalid nickname ?" , data.reason);
+        this.trigger('invalidNickname', data.reason || 'Invalid nickname');
+        // optional: keep socket open so user can try again without reloading
+        break;
+
+      case 'roomFull':
+        this.trigger('roomFull');
+        break;
       default:
         console.warn('Unhandled message type:', data.type);
     }

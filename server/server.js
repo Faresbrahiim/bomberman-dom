@@ -32,67 +32,75 @@ let roomCounter = 1;
 const MAX_ROOMS = 100;
 const MAX_PLAYERS_PER_ROOM = 4;
 
-// --- Nickname validation helper ---
-function validateNickname(nickname, room) {
-  // basic checks: non-empty, no "<3", length between 3–16, alphanumeric+underscore only
-  if (!nickname || typeof nickname !== 'string') return false;
-  if (nickname.includes('<3')) return false;
-  if (nickname.length < 3 || nickname.length > 16) return false;
-  if (!/^[a-zA-Z0-9_]+$/.test(nickname)) return false;
-
-  // duplicate check inside the same room
-  if (room) {
-    for (const existingName of room.clients.values()) {
-      if (existingName.toLowerCase() === nickname.toLowerCase()) {
-        return false;
-      }
-    }
+/** -----------------------
+ *  Nickname validation
+ *  -----------------------
+ *  - non-empty string
+ *  - no "<3"
+ *  - 3..16 chars
+ *  - alphanumeric + underscore only
+ */
+function validateNickname(nickname) {
+  if (!nickname || typeof nickname !== 'string') {
+    return { ok: false, reason: 'Nickname required' };
   }
-  return true;
+  if (nickname.includes('<3')) {
+    return { ok: false, reason: 'Nickname cannot contain "<3"' };
+  }
+  if (nickname.length < 3 || nickname.length > 16) {
+    return { ok: false, reason: 'Nickname must be 3–16 chars' };
+  }
+  if (!/^[a-zA-Z0-9_]+$/.test(nickname)) {
+    return { ok: false, reason: 'Use letters, numbers or _ only' };
+  }
+  return { ok: true };
+}
+
+/** check if the nickname already exists **in that room** (case-insensitive) */
+function nicknameTakenInRoom(room, nickname) {
+  const lower = nickname.toLowerCase();
+  for (const existing of room.clients.values()) {
+    if (existing.toLowerCase() === lower) return true;
+  }
+  return false;
 }
 
 // --- Assign player to a room ---
 function assignPlayerToRoom(ws, nickname) {
-  // check if the players can join rooms
-  for (const room of rooms.values()) {
-    // status  should be waiting and the countdown should be 20 => so can the player join the room + players in room < 4
-    if ((room.status === 'waiting' || room.status === 'countdown20') &&
-      room.clients.size < MAX_PLAYERS_PER_ROOM) {
-      
-      // --- nickname validation for existing room ---
-      if (!validateNickname(nickname, room)) {
-        ws.send(JSON.stringify({ type: 'invalidNickname', reason: 'Nickname invalid or already taken' }));
-        return null;
-      }
+  // 1) validate first (before touching rooms)
+  const vr = validateNickname(nickname);
+  if (!vr.ok) {
+    ws.send(JSON.stringify({ type: 'invalidNickname', reason: vr.reason }));
+    return null;
+  }
 
+  // 2) reject if nickname exists anywhere (GLOBAL uniqueness)
+  if (nicknameTakenGlobal(nickname)) {
+    ws.send(JSON.stringify({ type: 'invalidNickname', reason: 'Nickname already taken' }));
+    return null;
+  }
+
+  // 3) try to place in an existing room with capacity (status waiting|countdown20)
+  for (const room of rooms.values()) {
+    if ((room.status === 'waiting' || room.status === 'countdown20') &&
+        room.clients.size < MAX_PLAYERS_PER_ROOM) {
       room.clients.set(ws, nickname);
-      // tracks which room this WebSocket belongs to, useful for sending messages later.
       clientRooms.set(ws, room.id);
       return room;
     }
   }
-  // if none of rooms can accept the player need to generate new room 
+
+  // 4) otherwise create a new room (if capacity)
   if (rooms.size < MAX_ROOMS) {
-    // create new instance or romm (room) with the given id 
     const newRoom = new Room(`room${roomCounter++}`);
-
-    // --- nickname validation for new room (still applies) ---
-    if (!validateNickname(nickname, newRoom)) {
-      ws.send(JSON.stringify({ type: 'invalidNickname', reason: 'Nickname invalid' }));
-      return null;
-    }
-
-    // add the current player .......... the the new room
     newRoom.clients.set(ws, nickname);
-    // set the  new room in rooms 
     rooms.set(newRoom.id, newRoom);
-    // websocker tracking
     clientRooms.set(ws, newRoom.id);
-    // return the room 
     return newRoom;
   }
 
-  // All rooms full or countdown10/started → cannot join
+  // 5) no capacity at all
+  ws.send(JSON.stringify({ type: 'roomFull' }));
   return null;
 }
 
@@ -165,7 +173,6 @@ function start10SecCountdown(room) {
       // Collect player nicknames
       const players = Array.from(room.clients.values());
 
-
       // Send seed and players to all clients in the room
       broadcastToRoom(room.id, {
         type: 'gameStart',
@@ -187,14 +194,15 @@ wss.on('connection', (ws) => {
 
       switch (data.type) {
         case 'join': {
-          const room = assignPlayerToRoom(ws, data.nickname);
+          const nickname = String(data.nickname || '').trim();
+          const room = assignPlayerToRoom(ws, nickname);
 
           if (!room) {
             // if assign failed → already responded with invalidNickname or roomFull
             return;
           }
 
-          console.log(`Player ${data.nickname} joined ${room.id}`);
+          console.log(`Player ${nickname} joined ${room.id}`);
           ws.send(JSON.stringify({ type: 'roomJoined', roomId: room.id }));
           broadcastPlayerCount(room.id);
 
