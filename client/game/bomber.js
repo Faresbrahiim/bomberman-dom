@@ -176,7 +176,6 @@ export class BombermanGame {
         if (!localPlayer) return;
 
         const oldPosition = { ...localPlayer.position };
-        const oldGridPosition = { ...localPlayer.getGridPosition() };
 
         this.updatePassThroughBombs(localPlayer);
         
