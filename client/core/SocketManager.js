@@ -54,8 +54,7 @@ export class SocketManager {
         this.trigger('gameStart');
         break;
       case 'roomJoined':
-        console.log('Room joined successfully, triggering connected'); // DEBUG
-        // THIS is when we know join was successful - trigger connected now
+        console.log('Room joined successfully, triggering connected'); 
         this.trigger('connected');
         this.trigger('roomJoined', data.roomId);
         break;

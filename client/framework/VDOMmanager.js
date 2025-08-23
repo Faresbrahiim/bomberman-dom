@@ -25,6 +25,13 @@ export class VDOMManager {
 // VDOM diffing and patching
 // -------------------------
 function updateElement(parent, newVNode, oldVNode, index = 0) {
+  const el = parent.childNodes[index];
+  if (!el) {
+    // node doesn't exist → mount fresh
+    parent.appendChild(newVNode.render());
+    return;
+  }
+
   const existingEl = parent.childNodes[index];
 
   // Remove node
@@ -159,6 +166,8 @@ function changed(node1, node2) {
 }
 
 function updateAttributes(el, newAttrs = {}, oldAttrs = {}) {
+  if (!(el instanceof Element)) return;
+
   for (const key in oldAttrs) {
     if (!(key in newAttrs)) {
       el.removeAttribute(key);

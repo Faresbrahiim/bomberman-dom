@@ -171,7 +171,7 @@ function start20SecCountdown(room) {
       clearInterval(room.countdownTimer);
       start10SecCountdown(room);
     }
-  }, 1000);
+  }, 100);
 }
 
 function start10SecCountdown(room) {
@@ -202,7 +202,7 @@ function start10SecCountdown(room) {
       });
 
     }
-  }, 1000);
+  }, 100);
 }
 
 // --- WebSocket connections ---

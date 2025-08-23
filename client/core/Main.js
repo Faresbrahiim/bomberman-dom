@@ -1,6 +1,7 @@
 import { VNode } from "../framework/vdom.js";
 import { SocketManager } from "./SocketManager.js";
 import { ChatManager } from "./ChatManager.js";
+import { BombermanGame } from "../game/bomber.js";
 // import { GameMap } from "../game/Map.js";
 // main UI
 
@@ -12,6 +13,11 @@ export class Main {
     this.nickname = null;
     this.roomId = null;
     this.countdownSeconds = null;
+    this.state = {
+      nickname: "",
+      roomJoined: false,
+      error: null
+    };
     this.init();
   }
 
@@ -20,6 +26,7 @@ export class Main {
   }
 
   renderNicknameForm() {
+    console.log("hahahhahahahaha")
     const vnode = new VNode("div", { class: "nickname-form" }, [
       new VNode("h2", {}, ["Enter your nickname"]),
       new VNode("input", {
@@ -28,7 +35,7 @@ export class Main {
         placeholder: "Nickname",
       }),
       new VNode("button", { onclick: () => this.handleJoin() }, ["Join Lobby"]),
-      new VNode("p", { id: "errorMsg", style: "color: red;" }, []),
+      new VNode("p", { id: "errorMsg", style: "color: red;" }, [this.state.error]),
     ]);
     this.container.innerHTML = "";
     this.container.appendChild(vnode.render(vnode));
@@ -42,7 +49,8 @@ export class Main {
         "Please enter a nickname.";
       return;
     }
-    this.nickname = nickname;
+    new VNode("p", { id: "errorMsg", style: "color: red;" }, []),
+      this.nickname = nickname;
     this.startSocket();
   }
 
@@ -78,6 +86,16 @@ export class Main {
     this.socketManager.on("gameStart", () => {
       this.renderGame();
     });
+
+    this.socketManager.on("invalidNickname", (reason) => {
+      console.log("**************** ah ah ", reason)
+      // setState({
+      //   screen: "nickname",
+      //   isConnecting: false,
+      //   errorMessage: reason || "Invalid nickname"
+      // });
+      this.renderNicknameForm();
+    });
   }
 
   renderLobby() {
@@ -112,8 +130,8 @@ export class Main {
     }
   }
 
- renderGame() {
-    this.container.innerHTML = ""; // clear previous view
+  renderGame() {
+    this.container.innerHTML = ""; 
 
     // Main game layout container
     const gameLayout = document.createElement("div");
@@ -137,5 +155,9 @@ export class Main {
 
     this.container.appendChild(gameLayout);
     this.chatManager = new ChatManager(chatContainer, this.socketManager);
-}
+    // Initialize the game
+    console.log("khashaa twsell hnayaa");
+    const game = new BombermanGame();
+    game.init();
+  }
 }
