@@ -14,7 +14,7 @@ export class Main {
     this.countdownSeconds = null;
     this.init();
   }
-
+//hello
   init() {
     this.renderNicknameForm();
   }
