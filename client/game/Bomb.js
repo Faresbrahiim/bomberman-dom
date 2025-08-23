@@ -1,17 +1,25 @@
+import { GameConstants } from "./constant.js";
+
 export class Bomb {
-  constructor(x, y, ownerId, range) {
-    this.x = x;
-    this.y = y;
-    this.ownerId = ownerId;
-    this.range = range;
-    this.timer = 3000; // milliseconds until explosion
-  }
+    constructor(x, y, bombId, playerId) {
+        this.x = x;
+        this.y = y;
+        this.bombId = bombId;
+        this.playerId = playerId;
+        this.exploded = false;
+        this.timer = null;
+    }
 
-  startCountdown() {
-    // Start bomb timer
-  }
+    startTimer(callback) {
+        this.timer = setTimeout(() => {
+            callback(this.x, this.y);
+        }, GameConstants.BOMB_TIMER);
+    }
 
-  explode() {
-    // Handle explosion logic
-  }
+    explode() {
+        this.exploded = true;
+        if (this.timer) {
+            clearTimeout(this.timer);
+        }
+    }
 }
