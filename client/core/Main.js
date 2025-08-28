@@ -170,13 +170,16 @@ export class Main {
 
   renderGame(gameData) {
     this.container.innerHTML = "";
-
+    
     const gameLayout = document.createElement("div");
     gameLayout.className = "game-layout";
-
+    
     const gameArea = document.createElement("div");
     gameArea.className = "game-area";
+    // const title = document.createElement("h1");
+    // title.textContent = "welcome to bomber man Game" ;
 
+    // gameLayout.appendChild(title);
     const mapContainer = document.createElement("div");
     mapContainer.id = "gameMapContainer";
     mapContainer.className = "map-container";
