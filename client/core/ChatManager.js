@@ -55,25 +55,23 @@ export class ChatManager {
   }
 
   setupEventListeners() {
-    document.addEventListener("keydown", (e) => {
-      const input = document.getElementById("chatInput");
-      if (
-        input &&
-        !document.activeElement.matches("input, textarea") &&
-        /^[a-zA-Z0-9]$/.test(e.key)
-      ) {
-        input.focus();
-      }
-    });
+    const input = document.getElementById("chatInput");
 
-    // Add Enter key support for sending messages
+    // Focus chat when Enter is pressed (if not already typing)
     document.addEventListener("keydown", (e) => {
-      const input = document.getElementById("chatInput");
-      if (input && document.activeElement === input && e.key === "Enter") {
-        this.sendMessage(this.vdom.setState.bind(this.vdom));
+      if (e.key === "Enter") {
+        if (document.activeElement !== input) {
+          e.preventDefault();
+          input.focus();
+        } else {
+          e.preventDefault();
+          this.sendMessage(this.vdom.setState.bind(this.vdom));
+          input.blur(); // leave chat → back to game
+        }
       }
     });
   }
+
 
   sendMessage(setState) {
     const input = document.getElementById("chatInput");

@@ -5,22 +5,29 @@ export class InputHandler {
         this.keysPressed = {};
         this.setupEventListeners();
     }
-
     setupEventListeners() {
         document.addEventListener('keydown', (e) => {
+            // Ignore keys if typing in chat
+            if (document.activeElement.matches("input, textarea")) return;
+
             const key = e.key.toLowerCase();
             this.keysPressed[key] = true;
-            
-            if (key === ' ' || key === 'spacebar' || key === 'enter' || 
-                ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
+
+            if (
+                key === ' ' || key === 'spacebar' || key === 'enter' ||
+                ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)
+            ) {
                 e.preventDefault();
             }
         });
 
         document.addEventListener('keyup', (e) => {
+            if (document.activeElement.matches("input, textarea")) return;
             this.keysPressed[e.key.toLowerCase()] = false;
         });
     }
+
+
 
     getMovementInput() {
         let dx = 0;
