@@ -50,27 +50,27 @@ export class Main {
   handleJoin() {
     const input = document.getElementById("nicknameInput");
     const nickname = input.value.trim();
-    
+
     if (!nickname) {
       document.getElementById("errorMsg").textContent = "Please enter a nickname.";
       return;
     }
-    
+
     if (nickname.length < 3 || nickname.length > 16) {
       document.getElementById("errorMsg").textContent = "Nickname must be 3-16 characters long.";
       return;
     }
-    
+
     if (!/^[a-zA-Z0-9_]+$/.test(nickname)) {
       document.getElementById("errorMsg").textContent = "Nickname can only contain letters, numbers, and underscores.";
       return;
     }
-    
+
     if (nickname.includes('<3')) {
       document.getElementById("errorMsg").textContent = "Invalid nickname.";
       return;
     }
-    
+
     this.nickname = nickname;
     this.startSocket();
   }
@@ -144,7 +144,7 @@ export class Main {
     const el = document.getElementById("playerCount");
     if (el) {
       el.textContent = `Players in lobby: ${count}`;
-      
+
       if (count === 1) {
         el.textContent += " (Need at least 2 players to start)";
       } else if (count >= 2 && count < 4) {
@@ -170,12 +170,20 @@ export class Main {
 
   renderGame(gameData) {
     this.container.innerHTML = "";
-    
+
     const gameLayout = document.createElement("div");
     gameLayout.className = "game-layout";
-    
+
     const gameArea = document.createElement("div");
     gameArea.className = "game-area";
+    const baner = document.createElement("div");
+    baner.className = "banner";
+    const img = document.createElement("img");
+    img.src = "../media/baner.png";
+    img.alt = "notFound";
+    baner.appendChild(img);
+    gameArea.appendChild(baner);
+
     // const title = document.createElement("h1");
     // title.textContent = "welcome to bomber man Game" ;
 

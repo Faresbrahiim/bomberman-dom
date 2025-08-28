@@ -406,3 +406,16 @@ body {
   overflow: hidden;
   padding: 10px;
 }
+
+
+.banner {
+    position: absolute;
+    top: 0;
+    left: 33%;
+}
+
+.banner img {
+  max-width: 150px;   
+  /* width: 13%;          */
+  height: auto;     
+}
