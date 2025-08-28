@@ -10,7 +10,7 @@ export class BombermanGame {
   constructor(socketManager, gameData) {
     this.socketManager = socketManager;
     this.seed = gameData.seed;
-    this.players = new Map(); // playerId -> Player object
+    this.players = new Map(); 
     this.localPlayerId = socketManager.playerId;
 
     this.inputHandler = new InputHandler();
