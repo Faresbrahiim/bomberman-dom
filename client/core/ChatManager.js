@@ -24,7 +24,8 @@ export class ChatManager {
         this.socketManager.nickname &&
         message.includes(`${this.socketManager.nickname}:`);
 
-      let className = "chat-message";
+      // Use speech-bubble instead of chat-message for cute pixel art style! 🎮
+      let className = "speech-bubble";
       if (isSystem) className += " system";
       if (isOwn) className += " own";
 
@@ -33,7 +34,7 @@ export class ChatManager {
 
     return new VNode("div", { class: "chat-container" }, [
       new VNode("div", { class: "chat-header" }, [
-        new VNode("h3", {}, ["Chat"]),
+        new VNode("h3", {}, ["💬 Chat"]), // Added cute emoji
       ]),
       new VNode("div", { id: "chatMessages", class: "chat-messages" }, messages),
       new VNode("div", { class: "chat-input-container" }, [
@@ -41,14 +42,14 @@ export class ChatManager {
           id: "chatInput",
           type: "text",
           class: "chat-input",
-          placeholder: "Type a message...",
+          placeholder: "Type your cute message... ✨",
           maxlength: "200"
         }),
         new VNode("button", {
           id: "chatSend",
           class: "chat-send",
           onclick: () => this.sendMessage(setState)
-        }, ["Send"])
+        }, ["Send! 💫"])
       ])
     ]);
   }
@@ -62,6 +63,14 @@ export class ChatManager {
         /^[a-zA-Z0-9]$/.test(e.key)
       ) {
         input.focus();
+      }
+    });
+
+    // Add Enter key support for sending messages
+    document.addEventListener("keydown", (e) => {
+      const input = document.getElementById("chatInput");
+      if (input && document.activeElement === input && e.key === "Enter") {
+        this.sendMessage(this.vdom.setState.bind(this.vdom));
       }
     });
   }
@@ -106,24 +115,24 @@ export class ChatManager {
   }
 
   notifyPlayerJoined(playerName) {
-    this.addSystemMessage(`${playerName} joined the game`);
+    this.addSystemMessage(`🎮 ${playerName} joined the game`);
   }
 
   notifyPlayerLeft(playerName) {
-    this.addSystemMessage(`${playerName} left the game`);
+    this.addSystemMessage(`👋 ${playerName} left the game`);
   }
 
   notifyGameStart() {
-    this.addSystemMessage("Game started! Good luck!");
+    this.addSystemMessage("🚀 Game started! Good luck!");
   }
 
   notifyPlayerDied(playerName, livesLeft) {
     if (livesLeft > 0) {
       this.addSystemMessage(
-        `${playerName} was eliminated! ${livesLeft} lives remaining`
+        `💥 ${playerName} was eliminated! ${livesLeft} lives remaining`
       );
     } else {
-      this.addSystemMessage(`${playerName} is out of the game!`);
+      this.addSystemMessage(`☠️ ${playerName} is out of the game!`);
     }
   }
 
