@@ -1,32 +1,63 @@
-import express from 'express';
-import http from 'http';
-import { WebSocketServer } from 'ws';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import express from "express";
+import http from "http";
+import { WebSocketServer } from "ws";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 const server = http.createServer(app);
-app.use(express.static(path.join(__dirname, '../client')));
+app.use(express.static(path.join(__dirname, "../client")));
 const wss = new WebSocketServer({ server });
 
-// --- Room class --- ,, is construct the room with the websocket and  their nickname ,, when create instance means create room 
+// --- Room class ---
 class Room {
   constructor(id) {
     this.id = id;
     this.clients = new Map(); // Map<ws, nickname>
-    this.status = 'waiting';  // waiting | countdown20 | countdown10 | started
+    this.status = "waiting"; // waiting | countdown20 | countdown10 | started
     this.countdownTimer = null;
     this.countdownSeconds = 0;
-    this.seed = null; // <-- new: store random seed for this room
+    this.seed = null;
+    this.playerPositions = new Map(); // playerId -> {x, y, gridX, gridY}
+    this.nextPlayerId = 1;
+  }
+
+  getPlayerSpawnPosition(playerId) {
+    const spawns = [
+      { x: 60, y: 60 }, // Top-left
+      { x: 780, y: 60 }, // Top-right
+      { x: 60, y: 540 }, // Bottom-left
+      { x: 780, y: 540 }, // Bottom-right
+    ];
+    return spawns[playerId - 1] || spawns[0];
+  }
+
+  addPlayer(ws, nickname) {
+    const playerId = this.nextPlayerId++;
+    const spawnPos = this.getPlayerSpawnPosition(playerId);
+
+    this.clients.set(ws, {
+      nickname,
+      playerId,
+      position: spawnPos,
+      gridPosition: {
+        x: Math.floor(spawnPos.x / 60),
+        y: Math.floor(spawnPos.y / 60),
+      },
+      lives: 3,
+      powerups: { bombs: 0, flames: 0, speed: 0 },
+    });
+
+    return playerId;
   }
 }
 
 // --- Room tracking ---
-const rooms = new Map();        // Map<roomId, Room> => roomis : roomName .. active rooms
-const clientRooms = new Map();  // Map<ws, roomId> 
+const rooms = new Map();
+const clientRooms = new Map();
 let roomCounter = 1;
 
 const MAX_ROOMS = 100;
@@ -34,16 +65,14 @@ const MAX_PLAYERS_PER_ROOM = 4;
 
 // --- Nickname validation helper ---
 function validateNickname(nickname, room) {
-  // basic checks: non-empty, no "<3", length between 3–16, alphanumeric+underscore only
-  if (!nickname || typeof nickname !== 'string') return false;
-  if (nickname.includes('<3')) return false;
+  if (!nickname || typeof nickname !== "string") return false;
+  if (nickname.includes("<3")) return false;
   if (nickname.length < 3 || nickname.length > 16) return false;
   if (!/^[a-zA-Z0-9_]+$/.test(nickname)) return false;
 
-  // duplicate check inside the same room
   if (room) {
-    for (const existingName of room.clients.values()) {
-      if (existingName.toLowerCase() === nickname.toLowerCase()) {
+    for (const playerData of room.clients.values()) {
+      if (playerData.nickname.toLowerCase() === nickname.toLowerCase()) {
         return false;
       }
     }
@@ -53,91 +82,92 @@ function validateNickname(nickname, room) {
 
 // --- Assign player to a room ---
 function assignPlayerToRoom(ws, nickname) {
-  // check if the players can join rooms
   for (const room of rooms.values()) {
-    // status  should be waiting and the countdown should be 20 => so can the player join the room + players in room < 4
-    if ((room.status === 'waiting' || room.status === 'countdown20') &&
-      room.clients.size < MAX_PLAYERS_PER_ROOM) {
-      
-      // --- nickname validation for existing room ---
+    if (
+      (room.status === "waiting" || room.status === "countdown20") &&
+      room.clients.size < MAX_PLAYERS_PER_ROOM
+    ) {
       if (!validateNickname(nickname, room)) {
-        ws.send(JSON.stringify({ type: 'invalidNickname', reason: 'Nickname invalid or already taken' }));
+        ws.send(
+          JSON.stringify({
+            type: "invalidNickname",
+            reason: "Nickname invalid or already taken",
+          })
+        );
         return null;
       }
 
-      room.clients.set(ws, nickname);
-      // tracks which room this WebSocket belongs to, useful for sending messages later.
+      const playerId = room.addPlayer(ws, nickname);
       clientRooms.set(ws, room.id);
+
+      // Send playerId to the client
+      ws.send(JSON.stringify({ type: "playerIdAssigned", playerId }));
+
       return room;
     }
   }
-  // if none of rooms can accept the player need to generate new room 
+
   if (rooms.size < MAX_ROOMS) {
-    // create new instance or romm (room) with the given id 
     const newRoom = new Room(`room${roomCounter++}`);
 
-    // --- nickname validation for new room (still applies) ---
     if (!validateNickname(nickname, newRoom)) {
-      ws.send(JSON.stringify({ type: 'invalidNickname', reason: 'Nickname invalid' }));
+      ws.send(
+        JSON.stringify({ type: "invalidNickname", reason: "Nickname invalid" })
+      );
       return null;
     }
 
-    // add the current player .......... the the new room
-    newRoom.clients.set(ws, nickname);
-    // set the  new room in rooms 
+    const playerId = newRoom.addPlayer(ws, nickname);
     rooms.set(newRoom.id, newRoom);
-    // websocker tracking
     clientRooms.set(ws, newRoom.id);
-    // return the room 
+
+    // Send playerId to the client
+    ws.send(JSON.stringify({ type: "playerIdAssigned", playerId }));
+
     return newRoom;
   }
 
-  // All rooms full or countdown10/started → cannot join
   return null;
 }
 
-// --- Broadcast to room ---//
-// give the id and the data to to brodcast it 
+// --- Broadcast to room ---
 function broadcastToRoom(roomId, data) {
-  // get the room by id from the map
   const room = rooms.get(roomId);
   if (!room) return;
   const json = JSON.stringify(data);
-  // loop for the ws in the room -> and brodcast the data...
   for (const client of room.clients.keys()) {
     if (client.readyState === 1) client.send(json);
   }
 }
-// brodcast player count to speciefic room 
+
 function broadcastPlayerCount(roomId) {
   const room = rooms.get(roomId);
   if (!room) return;
-  broadcastToRoom(roomId, { type: 'playerCount', count: room.clients.size });
-}
-// brodcast the room to the message 
-function broadcastChatMessage(roomId, nickname, message) {
-  broadcastToRoom(roomId, { type: 'chat', message: `${nickname}: ${message}` });
+  broadcastToRoom(roomId, { type: "playerCount", count: room.clients.size });
 }
 
-// --- Countdown logic --- for 20 seconds
-// accept the room object
+function broadcastChatMessage(roomId, nickname, message) {
+  broadcastToRoom(roomId, { type: "chat", message: `${nickname}: ${message}` });
+}
+
+// --- Countdown logic ---
 function start20SecCountdown(room) {
-  if (room.status !== 'waiting' && room.status !== 'countdown20') return;
-  room.status = 'countdown20';
-  room.countdownSeconds = 20;
+  if (room.status !== "waiting" && room.status !== "countdown20") return;
+  room.status = "countdown20";
+  room.countdownSeconds = 1;
 
   room.countdownTimer = setInterval(() => {
-    // each time the set interval run ,,,, decrease -1 sc and brodcast it 
     room.countdownSeconds--;
-    broadcastToRoom(room.id, { type: 'countdownTick', seconds: room.countdownSeconds });
+    broadcastToRoom(room.id, {
+      type: "countdownTick",
+      seconds: room.countdownSeconds,
+    });
 
-    // If 4 players join during 20s countdown → skip to 10s countdown
     if (room.clients.size === MAX_PLAYERS_PER_ROOM) {
       clearInterval(room.countdownTimer);
       start10SecCountdown(room);
     }
 
-    // If 20s reached → start 10s countdown
     if (room.countdownSeconds <= 0) {
       clearInterval(room.countdownTimer);
       start10SecCountdown(room);
@@ -146,101 +176,249 @@ function start20SecCountdown(room) {
 }
 
 function start10SecCountdown(room) {
-  room.status = 'countdown10';
-  room.countdownSeconds = 10;
+  room.status = "countdown10";
+  room.countdownSeconds = 1;
 
   room.countdownTimer = setInterval(() => {
     room.countdownSeconds--;
-    broadcastToRoom(room.id, { type: 'countdownTick', seconds: room.countdownSeconds });
+    broadcastToRoom(room.id, {
+      type: "countdownTick",
+      seconds: room.countdownSeconds,
+    });
 
     if (room.countdownSeconds <= 0) {
       clearInterval(room.countdownTimer);
-      room.status = 'started';
+      room.status = "started";
 
-      // Generate random seed (1–100) if not already set
       if (room.seed === null) {
         room.seed = Math.floor(Math.random() * 100) + 1;
       }
 
-      // Collect player nicknames
-      const players = Array.from(room.clients.values());
+      // Collect all player data for game initialization
+      const players = [];
+      for (const [ws, playerData] of room.clients.entries()) {
+        players.push({
+          playerId: playerData.playerId,
+          nickname: playerData.nickname,
+          position: playerData.position,
+          gridPosition: playerData.gridPosition,
+          lives: playerData.lives,
+          powerups: playerData.powerups,
+        });
+      }
 
-
-      // Send seed and players to all clients in the room
       broadcastToRoom(room.id, {
-        type: 'gameStart',
+        type: "gameStart",
         seed: room.seed,
-        players
+        players,
       });
-
     }
   }, 1000);
 }
 
 // --- WebSocket connections ---
-wss.on('connection', (ws) => {
-  console.log('New player connected');
+wss.on("connection", (ws) => {
+  console.log("New player connected");
 
-  ws.on('message', (message) => {
+  ws.on("message", (message) => {
     try {
       const data = JSON.parse(message);
 
       switch (data.type) {
-        case 'join': {
+        case "join": {
           const room = assignPlayerToRoom(ws, data.nickname);
-
-          if (!room) {
-            // if assign failed → already responded with invalidNickname or roomFull
-            return;
-          }
+          if (!room) return;
 
           console.log(`Player ${data.nickname} joined ${room.id}`);
-          ws.send(JSON.stringify({ type: 'roomJoined', roomId: room.id }));
+          ws.send(JSON.stringify({ type: "roomJoined", roomId: room.id }));
           broadcastPlayerCount(room.id);
 
-          // Decide countdown
+          // Countdown logic
           if (room.clients.size === 1) {
-            // Only 1 player → do nothing
-          } else if (room.clients.size >= 2 && room.clients.size < MAX_PLAYERS_PER_ROOM) {
-            // 2 or 3 players → start 20s countdown if not started
-            if (room.status === 'waiting') start20SecCountdown(room);
+            // Only 1 player - do nothing
+          } else if (
+            room.clients.size >= 2 &&
+            room.clients.size < MAX_PLAYERS_PER_ROOM
+          ) {
+            if (room.status === "waiting") start20SecCountdown(room);
           } else if (room.clients.size === MAX_PLAYERS_PER_ROOM) {
-            // 4 players → start 10s countdown immediately
-            if (room.status !== 'started' && room.status !== 'countdown10') {
+            if (room.status !== "started" && room.status !== "countdown10") {
               clearInterval(room.countdownTimer);
               start10SecCountdown(room);
             }
           }
-
           break;
         }
 
-        case 'chat': {
+        case "chat": {
           const roomId = clientRooms.get(ws);
           if (!roomId) return;
           const room = rooms.get(roomId);
           if (!room) return;
-          const nickname = room.clients.get(ws) || 'Unknown';
+          const playerData = room.clients.get(ws);
+          const nickname = playerData?.nickname || "Unknown";
           broadcastChatMessage(roomId, nickname, data.message);
           break;
         }
 
+        case "playerMove": {
+          const roomId = clientRooms.get(ws);
+          if (!roomId) return;
+          const room = rooms.get(roomId);
+          if (!room) return;
+
+          const playerData = room.clients.get(ws);
+          if (playerData) {
+            playerData.position = data.position;
+            playerData.gridPosition = data.gridPosition;
+
+            // Broadcast to other players in the room
+            for (const [otherWs, otherPlayerData] of room.clients.entries()) {
+              if (otherWs !== ws && otherWs.readyState === 1) {
+                otherWs.send(
+                  JSON.stringify({
+                    type: "playerMoved",
+                    playerId: playerData.playerId,
+                    position: data.position,
+                    gridPosition: data.gridPosition,
+                    movement: data.movement, // Add this line
+                  })
+                );
+              }
+            }
+          }
+          break;
+        }
+
+        case "placeBomb": {
+          const roomId = clientRooms.get(ws);
+          if (!roomId) return;
+          const room = rooms.get(roomId);
+          if (!room) return;
+
+          const playerData = room.clients.get(ws);
+          if (playerData) {
+            const bombId = `${playerData.playerId}_${Date.now()}`;
+
+            // Broadcast to other players
+            for (const [otherWs, otherPlayerData] of room.clients.entries()) {
+              if (otherWs !== ws && otherWs.readyState === 1) {
+                otherWs.send(
+                  JSON.stringify({
+                    type: "bombPlaced",
+                    playerId: playerData.playerId,
+                    position: data.position,
+                    bombId: bombId,
+                  })
+                );
+              }
+            }
+          }
+          break;
+        }
+
+        case "bombExploded": {
+          const roomId = clientRooms.get(ws);
+          if (!roomId) return;
+
+          // Broadcast explosion to other players
+          for (const [otherWs] of rooms.get(roomId)?.clients || []) {
+            if (otherWs !== ws && otherWs.readyState === 1) {
+              otherWs.send(
+                JSON.stringify({
+                  type: "bombExploded",
+                  bombId: data.bombId,
+                  explosionCells: data.explosionCells,
+                })
+              );
+            }
+          }
+          break;
+        }
+
+        case "wallDestroyed": {
+          const roomId = clientRooms.get(ws);
+          if (!roomId) return;
+
+          // Broadcast wall destruction to other players
+          for (const [otherWs] of rooms.get(roomId)?.clients || []) {
+            if (otherWs !== ws && otherWs.readyState === 1) {
+              otherWs.send(
+                JSON.stringify({
+                  type: "wallDestroyed",
+                  position: data.position,
+                  powerupRevealed: data.powerupRevealed,
+                })
+              );
+            }
+          }
+          break;
+        }
+
+        case "powerupCollected": {
+          const roomId = clientRooms.get(ws);
+          if (!roomId) return;
+
+          // Broadcast powerup collection to other players
+          for (const [otherWs] of rooms.get(roomId)?.clients || []) {
+            if (otherWs !== ws && otherWs.readyState === 1) {
+              otherWs.send(
+                JSON.stringify({
+                  type: "powerupCollected",
+                  playerId: data.playerId,
+                  position: data.position,
+                  powerupType: data.powerupType,
+                })
+              );
+            }
+          }
+          break;
+        }
+
+        case "playerDied": {
+          const roomId = clientRooms.get(ws);
+          if (!roomId) return;
+          const room = rooms.get(roomId);
+          if (!room) return;
+
+          const playerData = room.clients.get(ws);
+          if (playerData) {
+            playerData.lives = Math.max(0, playerData.lives - 1);
+
+            // Broadcast to all players
+            broadcastToRoom(roomId, {
+              type: "playerDied",
+              playerId: playerData.playerId,
+              lives: playerData.lives,
+            });
+          }
+          break;
+        }
+
         default:
-          console.warn('Unknown message type:', data.type);
+          console.warn("Unknown message type:", data.type);
       }
     } catch (e) {
-      console.error('Invalid message:', message);
+      console.error("Invalid message:", message);
     }
   });
 
-  ws.on('close', () => {
+  ws.on("close", () => {
     const roomId = clientRooms.get(ws);
     if (roomId) {
       const room = rooms.get(roomId);
       if (room) {
+        const playerData = room.clients.get(ws);
         room.clients.delete(ws);
 
-        // If room empty, delete it
+        // Notify other players about disconnection
+        if (playerData) {
+          broadcastToRoom(roomId, {
+            type: "playerDisconnected",
+            playerId: playerData.playerId,
+          });
+        }
+
         if (room.clients.size === 0) {
           clearInterval(room.countdownTimer);
           rooms.delete(roomId);
@@ -250,7 +428,7 @@ wss.on('connection', (ws) => {
       }
       clientRooms.delete(ws);
     }
-    console.log('Player disconnected');
+    console.log("Player disconnected");
   });
 });
 

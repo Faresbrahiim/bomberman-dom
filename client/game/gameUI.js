@@ -4,22 +4,23 @@ export class GameUI {
     updateAllPlayersStatus(players) {
         const statusArea = document.getElementById('playerStatusArea');
         if (!statusArea) return;
-
+    
         statusArea.innerHTML = '<h3>Players:</h3>';
-        
+    
         const playersContainer = document.createElement('div');
         playersContainer.style.display = 'grid';
-        playersContainer.style.gridTemplateColumns = 'repeat(auto-fit, minmax(200px, 1fr))';
+        // Each player gets a fixed width of 200px, like your map tiles are fixed 60px
+        playersContainer.style.gridTemplateColumns = `repeat(${players.length}, 200px)`;
         playersContainer.style.gap = '10px';
-        
+    
         players.forEach((player, playerId) => {
             const playerDiv = document.createElement('div');
             playerDiv.className = `player-status ${player.isLocal ? 'local-player-status' : 'remote-player-status'}`;
-            playerDiv.style.padding = '10px';
-            playerDiv.style.border = '1px solid #ccc';
-            playerDiv.style.borderRadius = '5px';
+            playerDiv.style.width = '60';
+            playerDiv.style.height = '60';
+            playerDiv.style.backgroundSize = 'cover';
+            playerDiv.style.zIndex = '10';
             playerDiv.style.backgroundColor = player.isLocal ? '#e8f5e8' : '#f5f5f5';
-            
             playerDiv.innerHTML = `
                 <div style="font-weight: bold; color: ${this.getPlayerColor(playerId)};">
                     ${player.nickname} ${player.isLocal ? '(You)' : ''}
@@ -29,12 +30,13 @@ export class GameUI {
                 <div>Flames: ${player.powerups.flames}</div>
                 <div>Speed: ${player.powerups.speed}</div>
             `;
-            
+    
             playersContainer.appendChild(playerDiv);
         });
-        
+    
         statusArea.appendChild(playersContainer);
     }
+    
 
     getPlayerColor(playerId) {
         const colors = ['#ff4444', '#4444ff', '#44ff44', '#ffff44'];

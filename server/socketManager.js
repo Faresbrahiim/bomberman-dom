@@ -1,4 +1,4 @@
-// client/core/SocketManager.js
+// server/core/SocketManager.js
 export class SocketManager {
   constructor(nickname) {
     this.nickname = nickname;
