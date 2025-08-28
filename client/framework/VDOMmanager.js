@@ -159,6 +159,7 @@ function changed(node1, node2) {
 }
 
 function updateAttributes(el, newAttrs = {}, oldAttrs = {}) {
+    if (!(el instanceof HTMLElement)) return; // <-- skip text nodes
   for (const key in oldAttrs) {
     if (!(key in newAttrs)) {
       el.removeAttribute(key);

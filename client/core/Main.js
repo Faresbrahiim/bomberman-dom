@@ -25,11 +25,12 @@ export class Main {
       new VNode("input", {
         id: "nicknameInput",
         type: "text",
+        class: "nickname-input",
         placeholder: "Nickname (3-16 characters, letters/numbers/_)",
         maxlength: "16"
       }),
-      new VNode("button", { onclick: () => this.handleJoin() }, ["Join Lobby"]),
-      new VNode("p", { id: "errorMsg", style: "color: red;" }, []),
+      new VNode("button", { class: "join-btn", onclick: () => this.handleJoin() }, ["Join Lobby"]),
+      new VNode("p", { id: "errorMsg", class: "error-msg" }, []),
     ]);
     this.container.innerHTML = "";
     this.container.appendChild(vnode.render(vnode));
@@ -108,7 +109,6 @@ export class Main {
       document.getElementById("errorMsg").textContent = reason;
     });
 
-    // Handle connection errors
     this.socketManager.ws.onerror = () => {
       document.getElementById("errorMsg").textContent = "Failed to connect to server. Please try again.";
     };
@@ -118,11 +118,9 @@ export class Main {
     const vnode = new VNode("div", { class: "lobby" }, [
       new VNode("h2", {}, [`Welcome, ${this.nickname}!`]),
       new VNode("p", {}, ["Waiting for players to join..."]),
-      new VNode("p", { id: "playerCount" }, ["Players in lobby: 1"]),
-      new VNode("div", { id: "countdown" }, []), // Countdown UI container
-      new VNode("div", { 
-        style: "margin-top: 20px; padding: 10px; background: #f0f0f0; border-radius: 5px;"
-      }, [
+      new VNode("p", { id: "playerCount", class: "player-count" }, ["Players in lobby: 1"]),
+      new VNode("div", { id: "countdown", class: "countdown" }, []),
+      new VNode("div", { class: "rules-box" }, [
         new VNode("h3", {}, ["Game Rules:"]),
         new VNode("ul", {}, [
           new VNode("li", {}, ["Move: WASD or Arrow Keys"]),
@@ -131,7 +129,7 @@ export class Main {
           new VNode("li", {}, ["Last player standing wins!"]),
         ])
       ]),
-      new VNode("div", { id: "chatContainer" }),
+      new VNode("div", { id: "chatContainer", class: "chat-container" }),
     ]);
     this.container.innerHTML = "";
     this.container.appendChild(vnode.render(vnode));
@@ -147,7 +145,6 @@ export class Main {
     if (el) {
       el.textContent = `Players in lobby: ${count}`;
       
-      // Show countdown info based on player count
       if (count === 1) {
         el.textContent += " (Need at least 2 players to start)";
       } else if (count >= 2 && count < 4) {
@@ -164,66 +161,43 @@ export class Main {
     const countdownEl = document.getElementById("countdown");
     if (countdownEl) {
       if (seconds > 0) {
-        countdownEl.innerHTML = `<h3 style="color: #ff6600;">Game starts in: ${seconds}s</h3>`;
+        countdownEl.innerHTML = `<h3 class="countdown-timer">Game starts in: ${seconds}s</h3>`;
       } else {
-        countdownEl.innerHTML = '<h3 style="color: #00aa00;">Game Starting!</h3>';
+        countdownEl.innerHTML = '<h3 class="countdown-start">Game Starting!</h3>';
       }
     }
   }
 
   renderGame(gameData) {
-    this.container.innerHTML = ""; // clear previous view
+    this.container.innerHTML = "";
 
-    // Main game layout container
     const gameLayout = document.createElement("div");
-    gameLayout.style.display = "flex";
-    gameLayout.style.gap = "20px";
-    gameLayout.style.height = "100vh";
-    gameLayout.style.padding = "10px";
+    gameLayout.className = "game-layout";
 
-    // Left side - Game area
     const gameArea = document.createElement("div");
-    gameArea.style.flex = "1";
-    gameArea.style.display = "flex";
-    gameArea.style.flexDirection = "column";
-    gameArea.style.gap = "10px";
+    gameArea.className = "game-area";
 
-    // Game map container
     const mapContainer = document.createElement("div");
     mapContainer.id = "gameMapContainer";
-    mapContainer.style.position = "relative";
-    mapContainer.style.border = "2px solid #333";
-    mapContainer.style.borderRadius = "5px";
-    mapContainer.style.backgroundColor = "#2a2a2a";
+    mapContainer.className = "map-container";
     gameArea.appendChild(mapContainer);
 
-    // Player status area
     const statusContainer = document.createElement("div");
     statusContainer.id = "playerStatusArea";
-    statusContainer.style.padding = "10px";
-    statusContainer.style.backgroundColor = "#f9f9f9";
-    statusContainer.style.border = "1px solid #ddd";
-    statusContainer.style.borderRadius = "5px";
-    statusContainer.style.minHeight = "100px";
+    statusContainer.className = "status-container";
     gameArea.appendChild(statusContainer);
 
     gameLayout.appendChild(gameArea);
 
-    // Right side - Chat container
     const chatContainer = document.createElement("div");
     chatContainer.id = "chatContainer";
-    chatContainer.style.width = "300px";
-    chatContainer.style.height = "100%";
-    chatContainer.style.display = "flex";
-    chatContainer.style.flexDirection = "column";
+    chatContainer.className = "chat-container";
     gameLayout.appendChild(chatContainer);
 
     this.container.appendChild(gameLayout);
 
-    // Initialize chat manager
     this.chatManager = new ChatManager(chatContainer, this.socketManager);
 
-    // Initialize the game with the received data
     this.game = new BombermanGame(this.socketManager, gameData);
     this.game.init();
 
