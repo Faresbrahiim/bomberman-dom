@@ -489,6 +489,8 @@ export class BombermanGame {
     );
     if (cellElement) {
       cellElement.className = "cell bomb";
+      // Set the bomb element for animation
+      bomb.setElement(cellElement);
     }
 
     // Only the bomb owner handles the explosion timing
@@ -501,6 +503,7 @@ export class BombermanGame {
     const bomb = this.activeBombs.get(bombId);
     if (!bomb || bomb.exploded) return;
 
+    // Stop bomb animation and clean up
     bomb.explode();
     this.activeBombs.delete(bombId);
     this.currentMap[y][x] = GameConstants.CELL_TYPES.EMPTY;
@@ -533,7 +536,13 @@ export class BombermanGame {
         explosionCells.push({ x: nx, y: ny });
 
         if (this.currentMap[ny][nx] === GameConstants.CELL_TYPES.BOMB) {
-          // Chain explosion - let the other bomb's owner handle it
+          // Chain explosion - stop the other bomb's animation too
+          const chainBomb = Array.from(this.activeBombs.values()).find(
+            (b) => b.x === nx && b.y === ny
+          );
+          if (chainBomb) {
+            chainBomb.explode();
+          }
           break;
         }
 
@@ -551,7 +560,7 @@ export class BombermanGame {
   handleBombExplosion(bombId, explosionCells) {
     const bomb = this.activeBombs.get(bombId);
     if (bomb) {
-      bomb.explode();
+      bomb.explode(); // This will stop the animation
       this.activeBombs.delete(bombId);
     }
 
@@ -587,15 +596,33 @@ export class BombermanGame {
     if (cellType === GameConstants.CELL_TYPES.DESTRUCTIBLE) {
       this.destroyWall(x, y);
     } else if (cellType === GameConstants.CELL_TYPES.BOMB) {
+      // Clean up any remaining bomb animation
+      const bomb = Array.from(this.activeBombs.values()).find(
+        (b) => b.x === x && b.y === y
+      );
+      if (bomb) {
+        bomb.explode();
+        this.activeBombs.delete(bomb.bombId);
+      }
       this.currentMap[y][x] = GameConstants.CELL_TYPES.EMPTY;
     }
 
     // Visual flame effect
     if (cellElement) {
+      // Clear any bomb animation styles first
+      cellElement.style.backgroundImage = "";
+      cellElement.style.backgroundPosition = "";
+      cellElement.style.backgroundSize = "";
+
       cellElement.classList.add("flame");
       setTimeout(() => {
         const finalCellType = this.currentMap[y][x];
         cellElement.className = "cell";
+
+        // Reset any animation styles
+        cellElement.style.backgroundImage = "";
+        cellElement.style.backgroundPosition = "";
+        cellElement.style.backgroundSize = "";
 
         switch (finalCellType) {
           case GameConstants.CELL_TYPES.EMPTY:
@@ -702,27 +729,30 @@ export class BombermanGame {
   showSpectatorMessage() {
     const gameContainer = document.getElementById("gameMapContainer");
     if (!gameContainer) return;
-  
+
     // Remove existing spectator overlay if any
     const existingOverlay = document.getElementById("spectatorOverlay");
     if (existingOverlay) return; // Already showing
-  
+
     const overlay = document.createElement("div");
     overlay.id = "spectatorOverlay";
     overlay.className = "spectator-overlay";
-    
+
     const message = document.createElement("div");
     message.className = "spectator-message";
-    message.innerHTML = "<h3>SPECTATOR MODE</h3><p>You have been eliminated. Watch the remaining players!</p>";
-    
+    message.innerHTML =
+      "<h3>SPECTATOR MODE</h3><p>You have been eliminated. Watch the remaining players!</p>";
+
     overlay.appendChild(message);
     gameContainer.appendChild(overlay);
   }
-  
+
   handlePlayerEliminated(data) {
     if (this.chatManager) {
       const suffix = this.getOrdinalSuffix(data.eliminationOrder);
-      this.chatManager.addSystemMessage(`${data.nickname} eliminated! Finished ${data.eliminationOrder}${suffix} place.`);
+      this.chatManager.addSystemMessage(
+        `${data.nickname} eliminated! Finished ${data.eliminationOrder}${suffix} place.`
+      );
     }
   }
 
@@ -738,10 +768,10 @@ export class BombermanGame {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
     }
-  
+
     // Create game over screen with leaderboard
     this.showLeaderboard(leaderboard, winner);
-    
+
     // Disable input for all players
     this.inputHandler.disable();
   }
@@ -784,73 +814,76 @@ export class BombermanGame {
   showLeaderboard(leaderboard, winner) {
     const gameContainer = document.getElementById("gameMapContainer");
     if (!gameContainer) return;
-  
+
     // Remove existing overlays
     const existingOverlay = document.getElementById("gameOverOverlay");
     if (existingOverlay) existingOverlay.remove();
-    
+
     const spectatorOverlay = document.getElementById("spectatorOverlay");
     if (spectatorOverlay) spectatorOverlay.remove();
-  
+
     // Create leaderboard overlay
     const overlay = document.createElement("div");
     overlay.id = "gameOverOverlay";
     overlay.className = "game-over-overlay";
-    
+
     const content = document.createElement("div");
     content.className = "game-over-content";
-    
+
     const title = document.createElement("h1");
     title.className = "game-over-title";
     title.textContent = "Game Over";
-    
+
     const winnerText = document.createElement("h2");
     winnerText.className = "game-over-winner";
     winnerText.textContent = winner ? `${winner.nickname} Wins!` : "No Winner";
-    
+
     const leaderboardTitle = document.createElement("h3");
     leaderboardTitle.className = "leaderboard-title";
     leaderboardTitle.textContent = "Final Rankings";
-    
+
     const leaderboardList = document.createElement("div");
     leaderboardList.className = "leaderboard-list";
-    
+
     leaderboard.forEach((player) => {
       const playerRow = document.createElement("div");
       playerRow.className = `leaderboard-row rank-${player.rank}`;
-      
+
       const rankIcon = this.getRankIcon(player.rank);
-      const livesText = player.lives > 0 ? ` (${player.lives} lives)` : " (Eliminated)";
-      
+      const livesText =
+        player.lives > 0 ? ` (${player.lives} lives)` : " (Eliminated)";
+
       playerRow.innerHTML = `
-        <span class="rank">${rankIcon} ${player.rank}${this.getOrdinalSuffix(player.rank)}</span>
+        <span class="rank">${rankIcon} ${player.rank}${this.getOrdinalSuffix(
+        player.rank
+      )}</span>
         <span class="nickname">${player.nickname}</span>
         <span class="lives">${livesText}</span>
       `;
-      
+
       leaderboardList.appendChild(playerRow);
     });
-    
+
     const returnMessage = document.createElement("p");
     returnMessage.className = "return-lobby-message";
     returnMessage.textContent = "Returning to lobby in 5 seconds...";
-    
+
     content.appendChild(title);
     content.appendChild(winnerText);
     content.appendChild(leaderboardTitle);
     content.appendChild(leaderboardList);
     content.appendChild(returnMessage);
     overlay.appendChild(content);
-    
+
     gameContainer.appendChild(overlay);
   }
 
   getRankIcon(rank) {
     const icons = {
       1: "🥇",
-      2: "🥈", 
+      2: "🥈",
       3: "🥉",
-      4: "4️⃣"
+      4: "4️⃣",
     };
     return icons[rank] || rank;
   }
