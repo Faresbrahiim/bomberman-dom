@@ -271,20 +271,27 @@ export class BombermanGame {
       }
     }
 
-    // Apply movement
+    // Apply movement and track actual movement
+    let actualDx = 0;
+    let actualDy = 0;
+
     const newX = localPlayer.position.x + dx;
     if (!this.isColliding(newX, localPlayer.position.y)) {
       localPlayer.position.x = newX;
+      actualDx = dx;
     }
 
     const newY = localPlayer.position.y + dy;
     if (!this.isColliding(localPlayer.position.x, newY)) {
       localPlayer.position.y = newY;
+      actualDy = dy;
     }
 
     localPlayer.updateElementPosition();
     this.checkPowerupCollection(localPlayer);
-    localPlayer.updateAnimation(dx, dy);
+    
+    // Update animation based on ACTUAL movement, not input
+    localPlayer.updateAnimation(actualDx, actualDy);
 
     // Send position update if moved
     const newGridPosition = localPlayer.getGridPosition();
@@ -292,20 +299,10 @@ export class BombermanGame {
       oldPosition.x !== localPlayer.position.x ||
       oldPosition.y !== localPlayer.position.y
     ) {
-      // Calculate normalized movement direction
+      // Calculate normalized movement direction based on actual movement
       const movementDirection = {
-        dx:
-          oldPosition.x !== localPlayer.position.x
-            ? localPlayer.position.x > oldPosition.x
-              ? 1
-              : -1
-            : 0,
-        dy:
-          oldPosition.y !== localPlayer.position.y
-            ? localPlayer.position.y > oldPosition.y
-              ? 1
-              : -1
-            : 0,
+        dx: actualDx !== 0 ? (actualDx > 0 ? 1 : -1) : 0,
+        dy: actualDy !== 0 ? (actualDy > 0 ? 1 : -1) : 0,
       };
 
       this.socketManager.sendPlayerMove(
@@ -315,6 +312,7 @@ export class BombermanGame {
       );
     }
   }
+
 
   isSolid(cellType, gridX, gridY) {
     if (
