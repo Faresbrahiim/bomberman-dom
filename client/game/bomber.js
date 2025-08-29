@@ -864,7 +864,7 @@ export class BombermanGame {
 
     const returnMessage = document.createElement("p");
     returnMessage.className = "return-lobby-message";
-    returnMessage.textContent = "Returning to lobby in 5 seconds...";
+    returnMessage.textContent = "Press cnrtl + R to restart GAME";
 
     content.appendChild(title);
     content.appendChild(winnerText);
