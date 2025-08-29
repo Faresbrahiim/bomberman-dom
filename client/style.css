@@ -810,3 +810,86 @@ body {
     opacity: 1;
   }
 }
+
+/* ========== Responsive Layout ========== */
+
+/* Default: desktop (your current styles are fine) */
+
+/* Tablets */
+@media (max-width: 1024px) {
+  .game-layout {
+    flex-direction: column; /* stack game + chat vertically */
+    align-items: center;
+  }
+
+  .game-area {
+    flex-direction: column;
+    gap: 15px;
+    width: 100%;
+  }
+
+  .map {
+    grid-template-columns: repeat(15, 40px); /* smaller tiles */
+  }
+
+  .cell {
+    width: 40px;
+    height: 40px;
+  }
+
+  .chat-container {
+    width: 100%;
+    max-height: 250px;
+  }
+}
+
+/* Phones */
+@media (max-width: 600px) {
+  .game-layout {
+    flex-direction: column;
+    padding: 5px;
+    gap: 10px;
+  }
+
+  .banner img {
+    max-width: 100px;
+  }
+
+  .map {
+    grid-template-columns: repeat(15, 24px); /* shrink tiles more */
+  }
+
+  .cell {
+    width: 24px;
+    height: 24px;
+  }
+
+  .status-container {
+    width: 100%;
+    height: auto;
+    order: 2; /* push status below game */
+  }
+
+  .chat-container {
+    width: 100%;
+    max-height: 200px;
+    font-size: 12px;
+  }
+}
+
+/* Handle very small devices */
+@media (max-width: 400px) {
+  .map {
+    grid-template-columns: repeat(15, 18px);
+  }
+
+  .cell {
+    width: 18px;
+    height: 18px;
+  }
+
+  .banner img {
+    max-width: 80px;
+  }
+}
+
