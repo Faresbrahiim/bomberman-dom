@@ -12,6 +12,24 @@ export class GameUI {
         const style = document.createElement('style');
         style.id = 'player-card-styles';
         style.textContent = `
+            #playerStatusArea {
+                background-color: #fafafa;
+                background-image: radial-gradient(
+                    circle 6px,
+                    rgba(84, 245, 255, 0.35) 60%,   /* lighter, semi-transparent */
+                    transparent 100%
+                  ),
+                  radial-gradient(
+                    circle 6px,
+                    rgba(84, 245, 255, 0.35) 60%,
+                    transparent 100%
+                  );
+                background-position: 0 0, 16px 16px;
+                background-size: 32px 32px;
+                overflow: hidden;
+                padding: 10px;
+            }
+
             .players-container {
                 display: flex;
                 gap: 15px;
@@ -28,19 +46,10 @@ export class GameUI {
                 padding: 15px;
                 width: 200px;
                 position: relative;
-                box-shadow: 
-                    0 8px 20px rgba(0,0,0,0.3),
-                    inset 0 1px 0 rgba(255,255,255,0.1);
                 transition: all 0.3s ease;
                 overflow: hidden;
             }
 
-            .player-card:hover {
-                transform: translateY(-5px);
-                box-shadow: 
-                    0 12px 25px rgba(0,0,0,0.4),
-                    inset 0 1px 0 rgba(255,255,255,0.1);
-            }
 
             .player-card.local-player {
                 border-color: #27ae60;
