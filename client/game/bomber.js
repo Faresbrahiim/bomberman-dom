@@ -91,13 +91,15 @@ export class BombermanGame {
     this.socketManager.on("playerDied", (data) => {
       const player = this.players.get(data.playerId);
       if (player) {
+        // Update player lives from server data
         player.lives = data.lives;
 
-        // If this is the local player and they're eliminated
+        // Handle local player elimination
         if (data.playerId === this.localPlayerId && data.lives === 0) {
           this.enableSpectatorMode();
         }
 
+        // Update UI for all players
         this.ui.updateAllPlayersStatus(this.players);
       }
     });
@@ -139,9 +141,8 @@ export class BombermanGame {
     this.players.forEach((player, playerId) => {
       const playerElement = document.createElement("div");
       playerElement.id = `player-${playerId}`;
-      playerElement.className = `player ${
-        player.isLocal ? "local-player" : "remote-player"
-      }`;
+      playerElement.className = `player ${player.isLocal ? "local-player" : "remote-player"
+        }`;
       playerElement.style.position = "absolute";
       playerElement.style.width = GameConstants.TILE_SIZE + "px";
       playerElement.style.height = GameConstants.TILE_SIZE + "px";
@@ -236,7 +237,7 @@ export class BombermanGame {
     ) {
       const gridY = Math.floor(
         (localPlayer.position.y + GameConstants.TILE_SIZE / 2) /
-          GameConstants.TILE_SIZE
+        GameConstants.TILE_SIZE
       );
       const laneCenterY = gridY * GameConstants.TILE_SIZE;
 
@@ -257,7 +258,7 @@ export class BombermanGame {
     ) {
       const gridX = Math.floor(
         (localPlayer.position.x + GameConstants.TILE_SIZE / 2) /
-          GameConstants.TILE_SIZE
+        GameConstants.TILE_SIZE
       );
       const laneCenterX = gridX * GameConstants.TILE_SIZE;
 
@@ -289,7 +290,7 @@ export class BombermanGame {
 
     localPlayer.updateElementPosition();
     this.checkPowerupCollection(localPlayer);
-    
+
     // Update animation based on ACTUAL movement, not input
     localPlayer.updateAnimation(actualDx, actualDy);
 
@@ -582,15 +583,12 @@ export class BombermanGame {
       const playerGridPos = player.getGridPosition();
       if (playerGridPos.x === x && playerGridPos.y === y) {
         if (player.isLocal) {
-          player.takeDamage();
           this.socketManager.sendPlayerDied();
         }
-        player.lives--;
-        this.ui.updateAllPlayersStatus(this.players);
+
       }
     });
 
-    // Handle destructible walls
     if (cellType === GameConstants.CELL_TYPES.DESTRUCTIBLE) {
       this.destroyWall(x, y);
     } else if (cellType === GameConstants.CELL_TYPES.BOMB) {
@@ -864,7 +862,7 @@ export class BombermanGame {
 
     const returnMessage = document.createElement("p");
     returnMessage.className = "return-lobby-message";
-    returnMessage.textContent = "Press cnrtl + R to restart GAME";
+    returnMessage.textContent = "Returning to lobby in 5 seconds...";
 
     content.appendChild(title);
     content.appendChild(winnerText);
