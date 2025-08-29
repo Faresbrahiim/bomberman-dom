@@ -92,6 +92,12 @@ export class BombermanGame {
       const player = this.players.get(data.playerId);
       if (player) {
         player.lives = data.lives;
+
+        // If this is the local player and they're eliminated
+        if (data.playerId === this.localPlayerId && data.lives === 0) {
+          this.enableSpectatorMode();
+        }
+
         this.ui.updateAllPlayersStatus(this.players);
       }
     });
@@ -111,29 +117,15 @@ export class BombermanGame {
     this.socketManager.on("gameReset", (message) => {
       this.handleGameReset(message);
     });
+
     this.socketManager.on("playerEliminated", (data) => {
       this.handlePlayerEliminated(data);
-    });
-
-    this.socketManager.on("playerDied", (data) => {
-      const player = this.players.get(data.playerId);
-      if (player) {
-        player.lives = data.lives;
-
-        // If this is the local player and they're eliminated
-        if (data.playerId === this.localPlayerId && data.lives === 0) {
-          this.enableSpectatorMode();
-        }
-
-        this.ui.updateAllPlayersStatus(this.players);
-      }
     });
   }
 
   init() {
     this.generateMap();
     this.createPlayerElements();
-
     this.gameLoop();
   }
 
@@ -155,9 +147,6 @@ export class BombermanGame {
       playerElement.style.height = GameConstants.TILE_SIZE + "px";
       playerElement.style.zIndex = "10";
 
-      // Remove the background color - let sprites handle the appearance
-      // playerElement.style.backgroundColor = this.getPlayerColor(playerId);
-
       gameContainer.appendChild(playerElement);
       player.setElement(playerElement);
       player.updateElementPosition();
@@ -167,11 +156,6 @@ export class BombermanGame {
         player.updateAnimation(0, 0); // Set initial sprite
       }
     });
-  }
-
-  getPlayerColor(playerId) {
-    const colors = ["#ff4444", "#4444ff", "#44ff44", "#ffff44"];
-    return colors[playerId - 1] || "#ff4444";
   }
 
   generateMap() {
@@ -199,6 +183,7 @@ export class BombermanGame {
       this.hiddenPowerups
     );
   }
+
   updateRemotePlayerAnimations() {
     this.players.forEach((player, playerId) => {
       if (!player.isLocal && player.isMoving) {
@@ -213,6 +198,7 @@ export class BombermanGame {
       }
     });
   }
+
   gameLoop() {
     this.handleInput();
     this.updateLocalPlayerPosition();
@@ -229,8 +215,6 @@ export class BombermanGame {
       this.placeBomb();
       this.inputHandler.keysPressed[" "] = false;
     }
-
-    // Remove reset key handling - multiplayer games should be managed by server
   }
 
   updateLocalPlayerPosition() {
@@ -700,6 +684,7 @@ export class BombermanGame {
       cell.className = "cell empty";
     }
   }
+
   enableSpectatorMode() {
     // Disable input but keep game loop running for spectating
     this.inputHandler.disable();
@@ -713,6 +698,7 @@ export class BombermanGame {
       );
     }
   }
+
   showSpectatorMessage() {
     const gameContainer = document.getElementById("gameMapContainer");
     if (!gameContainer) return;
@@ -740,12 +726,12 @@ export class BombermanGame {
     }
   }
 
-
   getOrdinalSuffix(num) {
     const suffixes = ["th", "st", "nd", "rd"];
     const value = num % 100;
     return suffixes[(value - 20) % 10] || suffixes[value] || suffixes[0];
   }
+
   handleGameOver(leaderboard, winner) {
     // Stop the game loop
     if (this.animationFrameId) {
@@ -760,43 +746,6 @@ export class BombermanGame {
     this.inputHandler.disable();
   }
 
-  showGameOverScreen(winner, message) {
-    const gameContainer = document.getElementById("gameMapContainer");
-    if (!gameContainer) return;
-
-    // Remove existing overlay if any
-    const existingOverlay = document.getElementById("gameOverOverlay");
-    if (existingOverlay) {
-      existingOverlay.remove();
-    }
-
-    // Create overlay
-    const overlay = document.createElement("div");
-    overlay.id = "gameOverOverlay";
-    overlay.className = "game-over-overlay";
-
-    const content = document.createElement("div");
-    content.className = "game-over-content";
-
-    const title = document.createElement("h1");
-    title.className = "game-over-title";
-    title.textContent = "Game Over";
-
-    const winnerText = document.createElement("h2");
-    winnerText.className = "game-over-winner";
-    winnerText.textContent = message;
-
-    const restartText = document.createElement("p");
-    restartText.className = "game-over-restart";
-    restartText.textContent = "Starting new game in 5 seconds...";
-
-    content.appendChild(title);
-    content.appendChild(winnerText);
-    content.appendChild(restartText);
-    overlay.appendChild(content);
-
-    gameContainer.appendChild(overlay);
-  }
   handleGameReset(message) {
     // Remove all overlays
     const gameOverOverlay = document.getElementById("gameOverOverlay");
@@ -831,39 +780,7 @@ export class BombermanGame {
       this.gameLoop();
     }
   }
-  enableSpectatorMode() {
-    // Disable input but keep game loop running for spectating
-    this.inputHandler.disable();
 
-    // Show spectator message
-    this.showSpectatorMessage();
-
-    if (this.chatManager) {
-      this.chatManager.addSystemMessage(
-        "You are now spectating. Watch the remaining players!"
-      );
-    }
-  }
-  showSpectatorMessage() {
-    const gameContainer = document.getElementById("gameMapContainer");
-    if (!gameContainer) return;
-
-    // Remove existing spectator overlay if any
-    const existingOverlay = document.getElementById("spectatorOverlay");
-    if (existingOverlay) return; // Already showing
-
-    const overlay = document.createElement("div");
-    overlay.id = "spectatorOverlay";
-    overlay.className = "spectator-overlay";
-
-    const message = document.createElement("div");
-    message.className = "spectator-message";
-    message.innerHTML =
-      "<h3>SPECTATOR MODE</h3><p>You have been eliminated. Watch the remaining players!</p>";
-
-    overlay.appendChild(message);
-    gameContainer.appendChild(overlay);
-  }
   showLeaderboard(leaderboard, winner) {
     const gameContainer = document.getElementById("gameMapContainer");
     if (!gameContainer) return;
@@ -927,6 +844,7 @@ export class BombermanGame {
     
     gameContainer.appendChild(overlay);
   }
+
   getRankIcon(rank) {
     const icons = {
       1: "🥇",
