@@ -196,19 +196,17 @@ export class BombermanGame {
     this.animationFrameId = requestAnimationFrame(() => this.gameLoop());
   }
 
+
   handleInput() {
     const localPlayer = this.players.get(this.localPlayerId);
     if (!localPlayer) return;
-
+  
     if (this.inputHandler.isBombKeyPressed()) {
       this.placeBomb();
       this.inputHandler.keysPressed[" "] = false;
     }
-
-    if (this.inputHandler.isResetKeyPressed()) {
-      this.resetGame();
-      this.inputHandler.keysPressed["enter"] = false;
-    }
+  
+    // Remove reset key handling - multiplayer games should be managed by server
   }
 
   updateLocalPlayerPosition() {
@@ -679,12 +677,4 @@ export class BombermanGame {
     }
   }
 
-  resetGame() {
-    if (this.animationFrameId) {
-      cancelAnimationFrame(this.animationFrameId);
-    }
-    // In multiplayer, reset should probably be handled by the server
-    // For now, just restart the local game loop
-    this.gameLoop();
-  }
 }
