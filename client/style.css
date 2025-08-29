@@ -71,6 +71,7 @@ body {
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border:  solid , black , 6px;
 }
 
 .lobby h2 {
@@ -130,6 +131,7 @@ body {
   border-radius: 8px;
   background: #fafafa;
   overflow: hidden;
+  border : solid, black, 6px;
 }
 
 .chat-header {
@@ -210,7 +212,7 @@ body {
   gap: 10px;
   /* background: #fff; */
   background-image: url(media/background.jpg);
-
+  border:  black , solid , 6px;
   padding: 10px;
   border-radius: 8px;
 }
@@ -240,6 +242,9 @@ body {
   height: 100%;
 }
 
+#chatContainer{
+  border : solid, black, 6px;
+}
 /* ========== Map Grid & Tiles ========== */
 .map {
   display: grid;
@@ -957,6 +962,7 @@ body {
   background-size: 32px 32px;
   overflow: hidden;
   padding: 10px;
+  border: solid , black , 6px;
 }
 
 .players-container {
