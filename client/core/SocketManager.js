@@ -109,7 +109,20 @@ export class SocketManager {
       case "playerDisconnected":
         this.trigger("playerDisconnected", data);
         break;
+      case "gameOver":
+        this.trigger("gameOver", data.message); // for the dead player
+        break;
 
+      case "playerOut":
+        this.trigger("playerOut", {
+          playerId: data.playerId,
+          nickname: data.nickname,
+        });
+        break;
+
+      case "winner":
+        this.trigger("winner", data.message);
+        break;
       default:
         console.warn("Unhandled message type:", data.type);
     }

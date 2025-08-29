@@ -22,6 +22,8 @@ export class BombermanGame {
     this.mapWidth = 15;
     this.mapHeight = 11;
     this.animationFrameId = null;
+        this.active = true; // player can move/place bombs
+
 
     // Initialize players from game data
     this.initializePlayers(gameData.players);
@@ -29,7 +31,38 @@ export class BombermanGame {
     // Set up socket event listeners
     this.setupSocketListeners();
   }
+ disableControls() {
+    this.active = false;
+  }
 
+  showMessage(msg) {
+    // Display message on screen, e.g., overlay div
+    const statusArea = document.getElementById("playerStatusArea");
+    if (statusArea) {
+      const msgEl = document.createElement("div");
+      msgEl.className = "game-message";
+      msgEl.textContent = msg;
+      statusArea.appendChild(msgEl);
+
+      // Optional: remove after 3 seconds
+      setTimeout(() => msgEl.remove(), 3000);
+    }
+  }
+
+  // Before processing player moves or placing bombs:
+  playerCanMove() {
+    return this.active;
+  }
+
+  sendMove(position, gridPosition, movement) {
+    if (!this.active) return; // prevent dead players from moving
+    this.socketManager.sendPlayerMove(position, gridPosition, movement);
+  }
+
+  sendPlaceBomb(position) {
+    if (!this.active) return; // prevent dead players from placing bombs
+    this.socketManager.sendPlaceBomb(position);
+  }
   initializePlayers(playersData) {
     playersData.forEach((playerData) => {
       const player = new Player(

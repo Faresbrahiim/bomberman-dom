@@ -48,11 +48,13 @@ class Room {
         y: Math.floor(spawnPos.y / 60),
       },
       lives: 3,
+      alive: true, // NEW: track if player is alive
       powerups: { bombs: 0, flames: 0, speed: 0 },
     });
 
     return playerId;
   }
+
 }
 
 // --- Room tracking ---
@@ -154,7 +156,7 @@ function broadcastChatMessage(roomId, nickname, message) {
 function start20SecCountdown(room) {
   if (room.status !== "waiting" && room.status !== "countdown20") return;
   room.status = "countdown20";
-  room.countdownSeconds = 1;
+  room.countdownSeconds = 20;
 
   room.countdownTimer = setInterval(() => {
     room.countdownSeconds--;
@@ -262,12 +264,15 @@ wss.on("connection", (ws) => {
         }
 
         case "playerMove": {
+          
           const roomId = clientRooms.get(ws);
           if (!roomId) return;
           const room = rooms.get(roomId);
           if (!room) return;
 
           const playerData = room.clients.get(ws);
+          if (!playerData || !playerData.alive) return; // DEAD players cannot move or place bombs
+
           if (playerData) {
             playerData.position = data.position;
             playerData.gridPosition = data.gridPosition;
@@ -297,6 +302,9 @@ wss.on("connection", (ws) => {
           if (!room) return;
 
           const playerData = room.clients.get(ws);
+          
+          if (!playerData || !playerData.alive) return; // DEAD players cannot move or place bombs
+
           if (playerData) {
             const bombId = `${playerData.playerId}_${Date.now()}`;
 
@@ -382,18 +390,50 @@ wss.on("connection", (ws) => {
           if (!room) return;
 
           const playerData = room.clients.get(ws);
-          if (playerData) {
-            playerData.lives = Math.max(0, playerData.lives - 1);
+          if (!playerData || !playerData.alive) return;
 
-            // Broadcast to all players
+          playerData.lives = Math.max(0, playerData.lives - 1);
+
+          // If player is dead
+          if (playerData.lives === 0) {
+            playerData.alive = false;
+
+            // Send Game Over only to this player
+            ws.send(JSON.stringify({
+              type: "gameOver",
+              message: "Game Over! You are out, watch the game."
+            }));
+
+            console.log(`${playerData.nickname} is out!`);
+
+            // Notify all players
             broadcastToRoom(roomId, {
-              type: "playerDied",
+              type: "playerOut",
               playerId: playerData.playerId,
-              lives: playerData.lives,
+              nickname: playerData.nickname
             });
+          }
+
+          // Broadcast updated lives
+          broadcastToRoom(roomId, {
+            type: "playerDied",
+            playerId: playerData.playerId,
+            lives: playerData.lives
+          });
+
+          // Check for winner
+          const alivePlayers = [...room.clients.values()].filter(p => p.alive);
+          if (alivePlayers.length === 1) {
+            const winner = alivePlayers[0];
+            broadcastToRoom(roomId, {
+              type: "winner",
+              message: `${winner.nickname} wins!`
+            });
+            console.log(`${winner.nickname} wins!`);
           }
           break;
         }
+
 
         default:
           console.warn("Unknown message type:", data.type);
