@@ -94,6 +94,11 @@ export class BombermanGame {
         // Update player lives from server data
         player.lives = data.lives;
 
+        // Apply dead player visual effect if lives reach 0
+        if (data.lives === 0) {
+          player.applyDeadPlayerEffect();
+        }
+
         // Handle local player elimination
         if (data.playerId === this.localPlayerId && data.lives === 0) {
           this.enableSpectatorMode();
@@ -103,7 +108,6 @@ export class BombermanGame {
         this.ui.updateAllPlayersStatus(this.players);
       }
     });
-
     this.socketManager.on("playerDisconnected", (data) => {
       const player = this.players.get(data.playerId);
       if (player && player.element) {
@@ -788,6 +792,9 @@ export class BombermanGame {
     this.players.forEach((player, playerId) => {
       player.lives = 3;
       player.powerups = { bombs: 0, flames: 0, speed: 0 };
+
+      // Remove dead player visual effects
+      player.removeDeadPlayerEffect();
     });
 
     // Re-enable input for all players
@@ -882,5 +889,22 @@ export class BombermanGame {
       4: "4️⃣",
     };
     return icons[rank] || rank;
+  }
+  handlePlayerDeath(playerId) {
+    const player = this.players.get(playerId);
+    if (player && player.lives > 0) {
+      // Apply damage to the player
+      const tookDamage = player.takeDamage();
+
+      if (tookDamage) {
+        // Notify server about player death
+        if (playerId === this.localPlayerId) {
+          this.socketManager.sendPlayerDied();
+        }
+
+        // Update UI
+        this.ui.updateAllPlayersStatus(this.players);
+      }
+    }
   }
 }

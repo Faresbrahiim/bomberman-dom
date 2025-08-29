@@ -152,9 +152,30 @@ export class Player {
           this.element.classList.remove("damage-flash");
         }
       }, GameConstants.INVINCIBILITY_DURATION);
+    } else {
+      // Player is dead, apply dark filter effect
+      this.applyDeadPlayerEffect();
     }
 
     return true; // Damage was taken
+  }
+
+  applyDeadPlayerEffect() {
+    if (this.element) {
+      // Apply a dark filter to make the player almost black
+      this.element.style.filter = "brightness(0.1) contrast(0.5)";
+      this.element.style.opacity = "0.6";
+      this.element.classList.add("dead-player");
+    }
+  }
+
+  removeDeadPlayerEffect() {
+    if (this.element) {
+      // Remove the dark filter effect
+      this.element.style.filter = "";
+      this.element.style.opacity = "";
+      this.element.classList.remove("dead-player");
+    }
   }
 
   updateAnimation(dx, dy) {
