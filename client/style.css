@@ -1143,7 +1143,7 @@ body {
   position: relative;
   top: 0;
   left: 0;
-  transform: translate(-50%, -50%) rotate(-15deg);
+  transform: translate(0%, 337%) rotate(-15deg);;
   background: rgba(231, 76, 60, 0.9);
   color: white;
   padding: 5px 15px;
