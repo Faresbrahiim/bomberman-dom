@@ -227,7 +227,7 @@ function broadcastChatMessage(roomId, nickname, message) {
 function start20SecCountdown(room) {
   if (room.status !== "waiting" && room.status !== "countdown20") return;
   room.status = "countdown20";
-  room.countdownSeconds = 1;
+  room.countdownSeconds = 5;
 
   room.countdownTimer = setInterval(() => {
     room.countdownSeconds--;
