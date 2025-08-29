@@ -18,13 +18,35 @@ export class Player {
     this.movementTimeout = null;
     this.lastMovementTime = 0;
 
-    this.sprites = {
-      down: "media/move_down.png",
-      up: "media/move_up.png",
-      left: "media/move_left.png",
-      right: "media/move_right.png",
+    // Avatar assignment based on player ID
+    this.avatarColor = this.getAvatarColor(playerId);
+    this.sprites = this.getAvatarSprites(this.avatarColor);
+  }
+
+  getAvatarColor(playerId) {
+    const avatarColors = ['green', 'red', 'yellow', 'blue'];
+    return avatarColors[(playerId - 1) % 4];
+  }
+
+  getAvatarSprites(color) {
+    return {
+      down: `media/avatar${this.getAvatarNumber(color)}/move_down_${color}.png`,
+      up: `media/avatar${this.getAvatarNumber(color)}/move_up_${color}.png`,
+      left: `media/avatar${this.getAvatarNumber(color)}/move_left_${color}.png`,
+      right: `media/avatar${this.getAvatarNumber(color)}/move_right_${color}.png`,
     };
   }
+
+  getAvatarNumber(color) {
+    const colorToNumber = {
+      'green': '1',
+      'red': '2', 
+      'yellow': '3',
+      'blue': '4'
+    };
+    return colorToNumber[color] || '1';
+  }
+
   updateSprite() {
     if (this.element) {
       this.element.style.backgroundImage = `url('${
@@ -36,8 +58,11 @@ export class Player {
       }px 0px`;
     }
   }
+
   setElement(element) {
     this.element = element;
+    // Add avatar-specific class for additional styling if needed
+    this.element.classList.add(`avatar-${this.avatarColor}`);
     this.updateElementPosition();
   }
 
@@ -108,6 +133,7 @@ export class Player {
       }, 150); // Reduced timeout to 150ms
     }
   }
+
   takeDamage() {
     if (this.isInvincible || this.lives <= 0) return false;
 
