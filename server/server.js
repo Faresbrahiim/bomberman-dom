@@ -21,7 +21,6 @@ class Room {
     this.countdownTimer = null;
     this.countdownSeconds = 0;
     this.seed = null;
-    this.playerPositions = new Map(); // playerId -> {x, y, gridX, gridY}
     this.nextPlayerId = 1;
     this.eliminationCount = 1; // Track elimination order
   }
@@ -54,6 +53,7 @@ class Room {
 
     return playerId;
   }
+
   checkGameOver() {
     if (this.status !== "started") return;
 
@@ -97,6 +97,7 @@ class Room {
       }, 5000);
     }
   }
+
   returnToLobby() {
     this.status = "waiting";
     this.seed = null;
@@ -121,34 +122,6 @@ class Room {
     broadcastToRoom(this.id, {
       type: "returnToLobby",
       message: "Returning to lobby...",
-    });
-
-    broadcastPlayerCount(this.id);
-  }
-  startNewGame() {
-    this.status = "waiting";
-    this.seed = null;
-    this.countdownTimer = null;
-    this.countdownSeconds = 0;
-    this.eliminationCount = 1;
-
-    // Reset all players
-    for (const [ws, playerData] of this.clients.entries()) {
-      const spawnPos = this.getPlayerSpawnPosition(playerData.playerId);
-      playerData.position = spawnPos;
-      playerData.gridPosition = {
-        x: Math.floor(spawnPos.x / 60),
-        y: Math.floor(spawnPos.y / 60),
-      };
-      playerData.lives = 3;
-      playerData.powerups = { bombs: 0, flames: 0, speed: 0 };
-      playerData.eliminationOrder = null;
-      playerData.isSpectator = false;
-    }
-
-    broadcastToRoom(this.id, {
-      type: "gameReset",
-      message: "New game starting...",
     });
 
     broadcastPlayerCount(this.id);
@@ -381,7 +354,7 @@ wss.on("connection", (ws) => {
                     playerId: playerData.playerId,
                     position: data.position,
                     gridPosition: data.gridPosition,
-                    movement: data.movement, // Add this line
+                    movement: data.movement,
                   })
                 );
               }
