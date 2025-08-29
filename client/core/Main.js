@@ -12,13 +12,39 @@ export class Main {
     this.nickname = null;
     this.roomId = null;
     this.countdownSeconds = null;
+
     this.init();
   }
 
   init() {
+    this.createOverlay();
     this.renderNicknameForm();
   }
 
+  // --- Overlay for Game Over / Winner ---
+  createOverlay() {
+    this.overlay = document.createElement("div");
+    this.overlay.id = "gameOverlay";
+    this.overlay.className = "overlay hidden";
+    this.overlay.innerHTML = `<span id="overlayText"></span>`;
+    document.body.appendChild(this.overlay);
+    this.overlayText = document.getElementById("overlayText");
+  }
+
+  showOverlay(message, duration = null) {
+    this.overlayText.textContent = message + "🎉"; 
+    this.overlay.classList.remove("hidden");
+    this.overlay.classList.add("show");
+
+    if (duration) {
+      setTimeout(() => {
+        this.overlay.classList.remove("show");
+        this.overlay.classList.add("hidden");
+      }, duration);
+    }
+  }
+
+  // --- Nickname Form ---
   renderNicknameForm() {
     const vnode = new VNode("div", { class: "nickname-form" }, [
       new VNode("h2", {}, ["Enter your nickname"]),
@@ -39,14 +65,11 @@ export class Main {
     this.container.innerHTML = "";
     this.container.appendChild(vnode.render(vnode));
 
-    // Focus on input and handle enter key
     const input = document.getElementById("nicknameInput");
     if (input) {
       input.focus();
       input.addEventListener("keypress", (e) => {
-        if (e.key === "Enter") {
-          this.handleJoin();
-        }
+        if (e.key === "Enter") this.handleJoin();
       });
     }
   }
@@ -82,16 +105,13 @@ export class Main {
     this.startSocket();
   }
 
+  // --- Socket and Events ---
   startSocket() {
     this.socketManager = new SocketManager(this.nickname);
 
-    this.socketManager.on("connected", () => {
-      this.renderLobby();
-    });
+    this.socketManager.on("connected", () => this.renderLobby());
 
-    this.socketManager.on("playerCountUpdate", (count) => {
-      this.updatePlayerCount(count);
-    });
+    this.socketManager.on("playerCountUpdate", (count) => this.updatePlayerCount(count));
 
     this.socketManager.on("chatMessage", (msg) => {
       if (this.chatManager) this.chatManager.addMessage(msg);
@@ -102,31 +122,26 @@ export class Main {
       console.log("Joined room:", roomId);
     });
 
-    this.socketManager.on("countdownTick", (seconds) => {
-      this.countdownSeconds = seconds;
-      this.renderCountdown(seconds);
-    });
+    this.socketManager.on("countdownTick", (seconds) => this.renderCountdown(seconds));
 
-    this.socketManager.on("gameStart", (gameData) => {
-      console.log("Game starting!", gameData);
-      this.renderGame(gameData);
-    });
+    this.socketManager.on("gameStart", (gameData) => this.renderGame(gameData));
 
     this.socketManager.on("invalidNickname", (reason) => {
       document.getElementById("errorMsg").textContent = reason;
     });
+
     this.socketManager.on("gameOver", (message) => {
-      alert(message); // show temporary overlay
-      if (this.game) this.game.disableControls(); // prevent moving/placing bombs
+      this.showOverlay(message, 2000); // 2 seconds
+      if (this.game) this.game.disableControls();
     });
 
     this.socketManager.on("playerOut", (data) => {
       console.log(`${data.nickname} is out!`);
-      if (this.game) this.game.showMessage(`${data.nickname} is out!`); // optional overlay
+      if (this.game) this.game.showMessage(`${data.nickname} is out!`);
     });
 
     this.socketManager.on("winner", (message) => {
-      alert(message);
+      this.showOverlay(message); // stays until next game
       if (this.game) this.game.showMessage(message);
     });
 
@@ -136,22 +151,19 @@ export class Main {
     };
   }
 
+  // --- Lobby Rendering ---
   renderLobby() {
     const vnode = new VNode("div", { class: "lobby" }, [
       new VNode("h2", {}, [`Welcome, ${this.nickname}!`]),
       new VNode("p", {}, ["Waiting for players to join..."]),
-      new VNode("p", { id: "playerCount", class: "player-count" }, [
-        "Players in lobby: 1",
-      ]),
+      new VNode("p", { id: "playerCount", class: "player-count" }, ["Players in lobby: 1"]),
       new VNode("div", { id: "countdown", class: "countdown" }, []),
       new VNode("div", { class: "rules-box" }, [
         new VNode("h3", {}, ["Game Rules:"]),
         new VNode("ul", {}, [
           new VNode("li", {}, ["Move: WASD or Arrow Keys"]),
           new VNode("li", {}, ["Place Bomb: Spacebar"]),
-          new VNode("li", {}, [
-            "Collect powerups to increase bombs, flames, and speed",
-          ]),
+          new VNode("li", {}, ["Collect powerups to increase bombs, flames, and speed"]),
           new VNode("li", {}, ["Last player standing wins!"]),
         ]),
       ]),
@@ -160,24 +172,17 @@ export class Main {
     this.container.innerHTML = "";
     this.container.appendChild(vnode.render(vnode));
 
-    this.chatManager = new ChatManager(
-      document.getElementById("chatContainer"),
-      this.socketManager
-    );
+    this.chatManager = new ChatManager(document.getElementById("chatContainer"), this.socketManager);
   }
 
   updatePlayerCount(count) {
     const el = document.getElementById("playerCount");
     if (el) {
       el.textContent = `Players in lobby: ${count}`;
-
-      if (count === 1) {
-        el.textContent += " (Need at least 2 players to start)";
-      } else if (count >= 2 && count < 4) {
-        if (this.countdownSeconds === null) {
-          el.textContent +=
-            " (Game will start in 20 seconds, or when 4 players join)";
-        }
+      if (count === 1) el.textContent += " (Need at least 2 players to start)";
+      else if (count >= 2 && count < 4) {
+        if (this.countdownSeconds === null) el.textContent +=
+          " (Game will start in 20 seconds, or when 4 players join)";
       } else if (count === 4) {
         el.textContent += " (Game starting in 10 seconds!)";
       }
@@ -187,12 +192,8 @@ export class Main {
   renderCountdown(seconds) {
     const countdownEl = document.getElementById("countdown");
     if (countdownEl) {
-      if (seconds > 0) {
-        countdownEl.innerHTML = `<h3 class="countdown-timer">Game starts in: ${seconds}s</h3>`;
-      } else {
-        countdownEl.innerHTML =
-          '<h3 class="countdown-start">Game Starting!</h3>';
-      }
+      if (seconds > 0) countdownEl.innerHTML = `<h3 class="countdown-timer">Game starts in: ${seconds}s</h3>`;
+      else countdownEl.innerHTML = '<h3 class="countdown-start">Game Starting!</h3>';
     }
   }
 
@@ -204,18 +205,15 @@ export class Main {
 
     const gameArea = document.createElement("div");
     gameArea.className = "game-area";
-    const baner = document.createElement("div");
-    baner.className = "banner";
+
+    const banner = document.createElement("div");
+    banner.className = "banner";
     const img = document.createElement("img");
     img.src = "../media/baner.png";
     img.alt = "notFound";
-    baner.appendChild(img);
-    gameArea.appendChild(baner);
+    banner.appendChild(img);
+    gameArea.appendChild(banner);
 
-    // const title = document.createElement("h1");
-    // title.textContent = "welcome to bomber man Game" ;
-
-    // gameLayout.appendChild(title);
     const mapContainer = document.createElement("div");
     mapContainer.id = "gameMapContainer";
     mapContainer.className = "map-container";

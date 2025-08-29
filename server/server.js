@@ -427,7 +427,8 @@ wss.on("connection", (ws) => {
             const winner = alivePlayers[0];
             broadcastToRoom(roomId, {
               type: "winner",
-              message: `${winner.nickname} wins!`
+              message: `${winner.nickname} wins!`,
+              
             });
             console.log(`${winner.nickname} wins!`);
           }
