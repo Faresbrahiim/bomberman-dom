@@ -181,27 +181,7 @@ export class Main {
       }
     }
   }
-  handleReturnToLobby(message) {
-    // Stop the current game
-    if (this.game && this.game.animationFrameId) {
-      cancelAnimationFrame(this.game.animationFrameId);
-      this.game = null;
-    }
 
-    // Clear countdown state
-    this.countdownSeconds = null;
-
-    // Return to lobby view
-    this.renderLobby();
-
-    // Show return message in chat
-    if (this.chatManager) {
-      this.chatManager.addSystemMessage(message);
-      this.chatManager.addSystemMessage(
-        "🏆 Game completed! Ready for another round?"
-      );
-    }
-  }
   renderGame(gameData) {
     this.container.innerHTML = "";
 
@@ -218,10 +198,6 @@ export class Main {
     baner.appendChild(img);
     gameArea.appendChild(baner);
 
-    // const title = document.createElement("h1");
-    // title.textContent = "welcome to bomber man Game" ;
-
-    // gameLayout.appendChild(title);
     const mapContainer = document.createElement("div");
     mapContainer.id = "gameMapContainer";
     mapContainer.className = "map-container";
