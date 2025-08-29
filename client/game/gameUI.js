@@ -257,12 +257,12 @@ export class GameUI {
         playerHeader.className = 'player-header';
 
         const playerAvatar = document.createElement('div');
-        playerAvatar.className = `player-avatar player-${playerId + 1}`;
-        playerAvatar.textContent = `P${playerId + 1}`;
+        playerAvatar.className = `player-avatar player-${playerId }`;
+        playerAvatar.textContent = `P${playerId }`;
 
         const playerName = document.createElement('div');
         playerName.className = 'player-name';
-        playerName.textContent = player.nickname || `Player ${playerId + 1}`;
+        playerName.textContent = player.nickname || `Player ${playerId}`;
 
         playerHeader.appendChild(playerAvatar);
         playerHeader.appendChild(playerName);
