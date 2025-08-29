@@ -17,31 +17,76 @@ export class Main {
   }
 
   init() {
-    this.createOverlay();
     this.renderNicknameForm();
   }
 
-  // --- Overlay for Game Over / Winner ---
-  createOverlay() {
-    this.overlay = document.createElement("div");
-    this.overlay.id = "gameOverlay";
-    this.overlay.className = "overlay hidden";
-    this.overlay.innerHTML = `<span id="overlayText"></span>`;
-    document.body.appendChild(this.overlay);
-    this.overlayText = document.getElementById("overlayText");
+  // --- Overlay Functions ---
+  showOverlay(message, options = {}) {
+    const existing = document.getElementById("gameOverlay");
+    if (existing) existing.remove();
+
+    const overlay = document.createElement("div");
+    overlay.id = "gameOverlay";
+    overlay.style.position = "fixed";
+    overlay.style.top = 0;
+    overlay.style.left = 0;
+    overlay.style.width = "100%";
+    overlay.style.height = "100%";
+    overlay.style.background = "rgba(0,0,0,0.7)";
+    overlay.style.display = "flex";
+    overlay.style.flexDirection = "column";
+    overlay.style.justifyContent = "center";
+    overlay.style.alignItems = "center";
+    overlay.style.zIndex = 9999;
+    overlay.style.color = "#fff";
+    overlay.style.fontSize = "2rem";
+    overlay.style.textAlign = "center";
+
+    const text = document.createElement("div");
+    text.textContent = message;
+    overlay.appendChild(text);
+
+    if (options.button) {
+      const button = document.createElement("button");
+      button.textContent = options.button;
+      button.style.marginTop = "20px";
+      button.style.padding = "10px 20px";
+      button.style.fontSize = "1.2rem";
+      button.style.cursor = "pointer";
+      button.onclick = () => {
+        overlay.remove();
+        if (options.onClick) options.onClick();
+      };
+      overlay.appendChild(button);
+    }
+
+    document.body.appendChild(overlay);
+
+    if (!options.persistent && !options.button) {
+      setTimeout(() => overlay.remove(), options.duration || 2000);
+    }
   }
 
-  showOverlay(message, duration = null) {
-    this.overlayText.textContent = message + "🎉"; 
-    this.overlay.classList.remove("hidden");
-    this.overlay.classList.add("show");
+  showGameOverOverlay(message) {
+    this.showOverlay(message, {
+      button: "Play Again",
+      onClick: () => this.restartGame(),
+      persistent: true,
+    });
+  }
 
-    if (duration) {
-      setTimeout(() => {
-        this.overlay.classList.remove("show");
-        this.overlay.classList.add("hidden");
-      }, duration);
+  showWinnerOverlay(message) {
+    this.showOverlay(message, { persistent: true });
+  }
+
+  restartGame() {
+    if (this.game) {
+      this.game.destroy(); // stop loop, remove map
+      this.game = null;
     }
+    this.roomId = null;
+    this.countdownSeconds = null;
+    this.startSocket();
   }
 
   // --- Nickname Form ---
@@ -111,7 +156,9 @@ export class Main {
 
     this.socketManager.on("connected", () => this.renderLobby());
 
-    this.socketManager.on("playerCountUpdate", (count) => this.updatePlayerCount(count));
+    this.socketManager.on("playerCountUpdate", (count) =>
+      this.updatePlayerCount(count)
+    );
 
     this.socketManager.on("chatMessage", (msg) => {
       if (this.chatManager) this.chatManager.addMessage(msg);
@@ -122,7 +169,9 @@ export class Main {
       console.log("Joined room:", roomId);
     });
 
-    this.socketManager.on("countdownTick", (seconds) => this.renderCountdown(seconds));
+    this.socketManager.on("countdownTick", (seconds) =>
+      this.renderCountdown(seconds)
+    );
 
     this.socketManager.on("gameStart", (gameData) => this.renderGame(gameData));
 
@@ -131,8 +180,8 @@ export class Main {
     });
 
     this.socketManager.on("gameOver", (message) => {
-      this.showOverlay(message, 2000); // 2 seconds
       if (this.game) this.game.disableControls();
+      this.showGameOverOverlay(message);
     });
 
     this.socketManager.on("playerOut", (data) => {
@@ -141,7 +190,7 @@ export class Main {
     });
 
     this.socketManager.on("winner", (message) => {
-      this.showOverlay(message); // stays until next game
+      this.showWinnerOverlay(message);
       if (this.game) this.game.showMessage(message);
     });
 
@@ -151,19 +200,23 @@ export class Main {
     };
   }
 
-  // --- Lobby Rendering ---
+  // --- Lobby ---
   renderLobby() {
     const vnode = new VNode("div", { class: "lobby" }, [
       new VNode("h2", {}, [`Welcome, ${this.nickname}!`]),
       new VNode("p", {}, ["Waiting for players to join..."]),
-      new VNode("p", { id: "playerCount", class: "player-count" }, ["Players in lobby: 1"]),
+      new VNode("p", { id: "playerCount", class: "player-count" }, [
+        "Players in lobby: 1",
+      ]),
       new VNode("div", { id: "countdown", class: "countdown" }, []),
       new VNode("div", { class: "rules-box" }, [
         new VNode("h3", {}, ["Game Rules:"]),
         new VNode("ul", {}, [
           new VNode("li", {}, ["Move: WASD or Arrow Keys"]),
           new VNode("li", {}, ["Place Bomb: Spacebar"]),
-          new VNode("li", {}, ["Collect powerups to increase bombs, flames, and speed"]),
+          new VNode("li", {}, [
+            "Collect powerups to increase bombs, flames, and speed",
+          ]),
           new VNode("li", {}, ["Last player standing wins!"]),
         ]),
       ]),
@@ -172,17 +225,22 @@ export class Main {
     this.container.innerHTML = "";
     this.container.appendChild(vnode.render(vnode));
 
-    this.chatManager = new ChatManager(document.getElementById("chatContainer"), this.socketManager);
+    this.chatManager = new ChatManager(
+      document.getElementById("chatContainer"),
+      this.socketManager
+    );
   }
 
   updatePlayerCount(count) {
     const el = document.getElementById("playerCount");
     if (el) {
       el.textContent = `Players in lobby: ${count}`;
-      if (count === 1) el.textContent += " (Need at least 2 players to start)";
+      if (count === 1)
+        el.textContent += " (Need at least 2 players to start)";
       else if (count >= 2 && count < 4) {
-        if (this.countdownSeconds === null) el.textContent +=
-          " (Game will start in 20 seconds, or when 4 players join)";
+        if (this.countdownSeconds === null)
+          el.textContent +=
+            " (Game will start in 20 seconds, or when 4 players join)";
       } else if (count === 4) {
         el.textContent += " (Game starting in 10 seconds!)";
       }
@@ -192,7 +250,8 @@ export class Main {
   renderCountdown(seconds) {
     const countdownEl = document.getElementById("countdown");
     if (countdownEl) {
-      if (seconds > 0) countdownEl.innerHTML = `<h3 class="countdown-timer">Game starts in: ${seconds}s</h3>`;
+      if (seconds > 0)
+        countdownEl.innerHTML = `<h3 class="countdown-timer">Game starts in: ${seconds}s</h3>`;
       else countdownEl.innerHTML = '<h3 class="countdown-start">Game Starting!</h3>';
     }
   }
