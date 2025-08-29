@@ -523,6 +523,7 @@ export class BombermanGame {
       [0, 1],
       [0, -1],
     ];
+
     directions.forEach(([dx, dy]) => {
       for (let i = 1; i <= flamePower; i++) {
         const nx = x + dx * i;
@@ -538,17 +539,8 @@ export class BombermanGame {
 
         explosionCells.push({ x: nx, y: ny });
 
-        if (this.currentMap[ny][nx] === GameConstants.CELL_TYPES.BOMB) {
-          // Chain explosion - stop the other bomb's animation too
-          const chainBomb = Array.from(this.activeBombs.values()).find(
-            (b) => b.x === nx && b.y === ny
-          );
-          if (chainBomb) {
-            chainBomb.explode();
-          }
-          break;
-        }
-
+        // Don't break on bombs - let the flame pass through them
+        // Chain explosion will be handled in handleExplosionAt
         const shouldStop =
           this.currentMap[ny][nx] === GameConstants.CELL_TYPES.DESTRUCTIBLE;
         if (shouldStop) break;
@@ -589,27 +581,28 @@ export class BombermanGame {
         if (player.isLocal) {
           this.socketManager.sendPlayerDied();
         }
-
       }
     });
 
     if (cellType === GameConstants.CELL_TYPES.DESTRUCTIBLE) {
       this.destroyWall(x, y);
     } else if (cellType === GameConstants.CELL_TYPES.BOMB) {
-      // Clean up any remaining bomb animation
-      const bomb = Array.from(this.activeBombs.values()).find(
-        (b) => b.x === x && b.y === y
+      // Handle chain explosion
+      const chainBomb = Array.from(this.activeBombs.values()).find(
+        (b) => b.x === x && b.y === y && !b.exploded
       );
-      if (bomb) {
-        bomb.explode();
-        this.activeBombs.delete(bomb.bombId);
+      if (chainBomb) {
+        // Trigger chain explosion with slight delay for visual effect
+        setTimeout(() => {
+          if (this.activeBombs.has(chainBomb.bombId) && !chainBomb.exploded) {
+            this.explodeBomb(chainBomb.x, chainBomb.y, chainBomb.bombId);
+          }
+        }, 100);
       }
-      this.currentMap[y][x] = GameConstants.CELL_TYPES.EMPTY;
     }
 
-    // Visual flame effect
+    // Visual flame effect (rest of the method remains the same)
     if (cellElement) {
-      // Clear any bomb animation styles first
       cellElement.style.backgroundImage = "";
       cellElement.style.backgroundPosition = "";
       cellElement.style.backgroundSize = "";
@@ -619,7 +612,6 @@ export class BombermanGame {
         const finalCellType = this.currentMap[y][x];
         cellElement.className = "cell";
 
-        // Reset any animation styles
         cellElement.style.backgroundImage = "";
         cellElement.style.backgroundPosition = "";
         cellElement.style.backgroundSize = "";
@@ -647,7 +639,6 @@ export class BombermanGame {
       }, GameConstants.FLAME_DURATION);
     }
   }
-
   destroyWall(x, y) {
     const cell = document.querySelector(`[data-x="${x}"][data-y="${y}"]`);
     if (
