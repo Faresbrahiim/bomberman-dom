@@ -17,12 +17,13 @@ class Room {
   constructor(id) {
     this.id = id;
     this.clients = new Map(); // Map<ws, nickname>
-    this.status = "waiting"; // waiting | countdown20 | countdown10 | started
+    this.status = "waiting"; // waiting | countdown20 | countdown10 | started | finished
     this.countdownTimer = null;
     this.countdownSeconds = 0;
     this.seed = null;
     this.playerPositions = new Map(); // playerId -> {x, y, gridX, gridY}
     this.nextPlayerId = 1;
+    this.eliminationCount = 1; // Track elimination order
   }
 
   getPlayerSpawnPosition(playerId) {
@@ -52,6 +53,105 @@ class Room {
     });
 
     return playerId;
+  }
+  checkGameOver() {
+    if (this.status !== "started") return;
+
+    const alivePlayers = [];
+    for (const [ws, playerData] of this.clients.entries()) {
+      if (playerData.lives > 0) {
+        alivePlayers.push(playerData);
+      }
+    }
+
+    if (alivePlayers.length <= 1) {
+      this.status = "finished";
+
+      // Add the last surviving player to elimination order
+      if (alivePlayers.length === 1) {
+        const winner = alivePlayers[0];
+        if (!winner.eliminationOrder) {
+          winner.eliminationOrder = this.eliminationCount++;
+        }
+      }
+
+      // Create leaderboard (1st = last eliminated, 4th = first eliminated)
+      const leaderboard = Array.from(this.clients.values())
+        .sort((a, b) => (b.eliminationOrder || 0) - (a.eliminationOrder || 0))
+        .map((player, index) => ({
+          rank: index + 1,
+          playerId: player.playerId,
+          nickname: player.nickname,
+          lives: player.lives,
+        }));
+
+      broadcastToRoom(this.id, {
+        type: "gameOver",
+        leaderboard: leaderboard,
+        winner: leaderboard[0] || null,
+      });
+
+      // Return to lobby after showing results
+      setTimeout(() => {
+        this.returnToLobby();
+      }, 5000);
+    }
+  }
+  returnToLobby() {
+    this.status = "waiting";
+    this.seed = null;
+    this.countdownTimer = null;
+    this.countdownSeconds = 0;
+    this.eliminationCount = 1;
+
+    // Reset all players
+    for (const [ws, playerData] of this.clients.entries()) {
+      const spawnPos = this.getPlayerSpawnPosition(playerData.playerId);
+      playerData.position = spawnPos;
+      playerData.gridPosition = {
+        x: Math.floor(spawnPos.x / 60),
+        y: Math.floor(spawnPos.y / 60),
+      };
+      playerData.lives = 3;
+      playerData.powerups = { bombs: 0, flames: 0, speed: 0 };
+      playerData.eliminationOrder = null;
+      playerData.isSpectator = false;
+    }
+
+    broadcastToRoom(this.id, {
+      type: "returnToLobby",
+      message: "Returning to lobby...",
+    });
+
+    broadcastPlayerCount(this.id);
+  }
+  startNewGame() {
+    this.status = "waiting";
+    this.seed = null;
+    this.countdownTimer = null;
+    this.countdownSeconds = 0;
+    this.eliminationCount = 1;
+
+    // Reset all players
+    for (const [ws, playerData] of this.clients.entries()) {
+      const spawnPos = this.getPlayerSpawnPosition(playerData.playerId);
+      playerData.position = spawnPos;
+      playerData.gridPosition = {
+        x: Math.floor(spawnPos.x / 60),
+        y: Math.floor(spawnPos.y / 60),
+      };
+      playerData.lives = 3;
+      playerData.powerups = { bombs: 0, flames: 0, speed: 0 };
+      playerData.eliminationOrder = null;
+      playerData.isSpectator = false;
+    }
+
+    broadcastToRoom(this.id, {
+      type: "gameReset",
+      message: "New game starting...",
+    });
+
+    broadcastPlayerCount(this.id);
   }
 }
 
@@ -154,7 +254,7 @@ function broadcastChatMessage(roomId, nickname, message) {
 function start20SecCountdown(room) {
   if (room.status !== "waiting" && room.status !== "countdown20") return;
   room.status = "countdown20";
-  room.countdownSeconds = 1;
+  room.countdownSeconds = 10;
 
   room.countdownTimer = setInterval(() => {
     room.countdownSeconds--;
@@ -177,7 +277,7 @@ function start20SecCountdown(room) {
 
 function start10SecCountdown(room) {
   room.status = "countdown10";
-  room.countdownSeconds = 1;
+  room.countdownSeconds = 5;
 
   room.countdownTimer = setInterval(() => {
     room.countdownSeconds--;
@@ -385,16 +485,32 @@ wss.on("connection", (ws) => {
           if (playerData) {
             playerData.lives = Math.max(0, playerData.lives - 1);
 
+            // If player is eliminated, mark them as spectator and record elimination order
+            if (playerData.lives === 0 && !playerData.eliminationOrder) {
+              playerData.isSpectator = true;
+              playerData.eliminationOrder = room.eliminationCount++;
+
+              // Broadcast elimination message
+              broadcastToRoom(roomId, {
+                type: "playerEliminated",
+                playerId: playerData.playerId,
+                nickname: playerData.nickname,
+                eliminationOrder: playerData.eliminationOrder,
+              });
+            }
+
             // Broadcast to all players
             broadcastToRoom(roomId, {
               type: "playerDied",
               playerId: playerData.playerId,
               lives: playerData.lives,
             });
+
+            // Check for game over after player death
+            room.checkGameOver();
           }
           break;
         }
-
         default:
           console.warn("Unknown message type:", data.type);
       }

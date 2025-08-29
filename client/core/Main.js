@@ -27,9 +27,13 @@ export class Main {
         type: "text",
         class: "nickname-input",
         placeholder: "Nickname (3-16 characters, letters/numbers/_)",
-        maxlength: "16"
+        maxlength: "16",
       }),
-      new VNode("button", { class: "join-btn", onclick: () => this.handleJoin() }, ["Join Lobby"]),
+      new VNode(
+        "button",
+        { class: "join-btn", onclick: () => this.handleJoin() },
+        ["Join Lobby"]
+      ),
       new VNode("p", { id: "errorMsg", class: "error-msg" }, []),
     ]);
     this.container.innerHTML = "";
@@ -39,8 +43,8 @@ export class Main {
     const input = document.getElementById("nicknameInput");
     if (input) {
       input.focus();
-      input.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
+      input.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
           this.handleJoin();
         }
       });
@@ -52,21 +56,24 @@ export class Main {
     const nickname = input.value.trim();
 
     if (!nickname) {
-      document.getElementById("errorMsg").textContent = "Please enter a nickname.";
+      document.getElementById("errorMsg").textContent =
+        "Please enter a nickname.";
       return;
     }
 
     if (nickname.length < 3 || nickname.length > 16) {
-      document.getElementById("errorMsg").textContent = "Nickname must be 3-16 characters long.";
+      document.getElementById("errorMsg").textContent =
+        "Nickname must be 3-16 characters long.";
       return;
     }
 
     if (!/^[a-zA-Z0-9_]+$/.test(nickname)) {
-      document.getElementById("errorMsg").textContent = "Nickname can only contain letters, numbers, and underscores.";
+      document.getElementById("errorMsg").textContent =
+        "Nickname can only contain letters, numbers, and underscores.";
       return;
     }
 
-    if (nickname.includes('<3')) {
+    if (nickname.includes("<3")) {
       document.getElementById("errorMsg").textContent = "Invalid nickname.";
       return;
     }
@@ -110,7 +117,8 @@ export class Main {
     });
 
     this.socketManager.ws.onerror = () => {
-      document.getElementById("errorMsg").textContent = "Failed to connect to server. Please try again.";
+      document.getElementById("errorMsg").textContent =
+        "Failed to connect to server. Please try again.";
     };
   }
 
@@ -118,16 +126,20 @@ export class Main {
     const vnode = new VNode("div", { class: "lobby" }, [
       new VNode("h2", {}, [`Welcome, ${this.nickname}!`]),
       new VNode("p", {}, ["Waiting for players to join..."]),
-      new VNode("p", { id: "playerCount", class: "player-count" }, ["Players in lobby: 1"]),
+      new VNode("p", { id: "playerCount", class: "player-count" }, [
+        "Players in lobby: 1",
+      ]),
       new VNode("div", { id: "countdown", class: "countdown" }, []),
       new VNode("div", { class: "rules-box" }, [
         new VNode("h3", {}, ["Game Rules:"]),
         new VNode("ul", {}, [
           new VNode("li", {}, ["Move: WASD or Arrow Keys"]),
           new VNode("li", {}, ["Place Bomb: Spacebar"]),
-          new VNode("li", {}, ["Collect powerups to increase bombs, flames, and speed"]),
+          new VNode("li", {}, [
+            "Collect powerups to increase bombs, flames, and speed",
+          ]),
           new VNode("li", {}, ["Last player standing wins!"]),
-        ])
+        ]),
       ]),
       new VNode("div", { id: "chatContainer", class: "chat-container" }),
     ]);
@@ -149,7 +161,8 @@ export class Main {
         el.textContent += " (Need at least 2 players to start)";
       } else if (count >= 2 && count < 4) {
         if (this.countdownSeconds === null) {
-          el.textContent += " (Game will start in 20 seconds, or when 4 players join)";
+          el.textContent +=
+            " (Game will start in 20 seconds, or when 4 players join)";
         }
       } else if (count === 4) {
         el.textContent += " (Game starting in 10 seconds!)";
@@ -163,11 +176,32 @@ export class Main {
       if (seconds > 0) {
         countdownEl.innerHTML = `<h3 class="countdown-timer">Game starts in: ${seconds}s</h3>`;
       } else {
-        countdownEl.innerHTML = '<h3 class="countdown-start">Game Starting!</h3>';
+        countdownEl.innerHTML =
+          '<h3 class="countdown-start">Game Starting!</h3>';
       }
     }
   }
+  handleReturnToLobby(message) {
+    // Stop the current game
+    if (this.game && this.game.animationFrameId) {
+      cancelAnimationFrame(this.game.animationFrameId);
+      this.game = null;
+    }
 
+    // Clear countdown state
+    this.countdownSeconds = null;
+
+    // Return to lobby view
+    this.renderLobby();
+
+    // Show return message in chat
+    if (this.chatManager) {
+      this.chatManager.addSystemMessage(message);
+      this.chatManager.addSystemMessage(
+        "🏆 Game completed! Ready for another round?"
+      );
+    }
+  }
   renderGame(gameData) {
     this.container.innerHTML = "";
 

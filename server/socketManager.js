@@ -2,13 +2,16 @@
 export class SocketManager {
   constructor(nickname) {
     this.nickname = nickname;
-    this.ws = new WebSocket('ws://localhost:3000');
+    this.ws = new WebSocket("ws://localhost:3000");
     this.eventHandlers = {};
 
     this.ws.onopen = () => {
-      this.send({ type: 'join', nickname: this.nickname });
-      this.trigger('connected');
+      this.send({ type: "join", nickname: this.nickname });
+      this.trigger("connected");
     };
+    this.socketManager.on("returnToLobby", (message) => {
+      this.handleReturnToLobby(message);
+    });
 
     this.ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
@@ -32,20 +35,20 @@ export class SocketManager {
 
   handleMessage(data) {
     switch (data.type) {
-      case 'playerCount':
-        this.trigger('playerCountUpdate', data.count);
+      case "playerCount":
+        this.trigger("playerCountUpdate", data.count);
         break;
 
-      case 'chat':
-        this.trigger('chatMessage', data.message);
+      case "chat":
+        this.trigger("chatMessage", data.message);
         break;
 
       default:
-        console.warn('Unknown message type:', data.type);
+        console.warn("Unknown message type:", data.type);
     }
   }
 
   sendChatMessage(message) {
-    this.send({ type: 'chat', message });
+    this.send({ type: "chat", message });
   }
 }

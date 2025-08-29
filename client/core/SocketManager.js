@@ -109,6 +109,28 @@ export class SocketManager {
       case "playerDisconnected":
         this.trigger("playerDisconnected", data);
         break;
+      case "gameOver":
+        this.trigger("gameOver", {
+          leaderboard: data.leaderboard,
+          winner: data.winner,
+        });
+        break;
+
+      case "gameReset":
+        this.trigger("gameReset", data.message);
+        break;
+
+      case "returnToLobby":
+        this.trigger("returnToLobby", data.message);
+        break;
+
+      case "playerEliminated":
+        this.trigger("playerEliminated", {
+          playerId: data.playerId,
+          nickname: data.nickname,
+          eliminationOrder: data.eliminationOrder,
+        });
+        break;
 
       default:
         console.warn("Unhandled message type:", data.type);

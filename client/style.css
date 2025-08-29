@@ -419,3 +419,237 @@ body {
   /* width: 13%;          */
   height: auto;     
 }
+.game-over-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+.game-over-content {
+  text-align: center;
+  color: white;
+  padding: 2rem;
+  background: rgba(0, 0, 0, 0.9);
+  border-radius: 10px;
+  border: 2px solid #ff4444;
+  box-shadow: 0 0 20px rgba(255, 68, 68, 0.5);
+  max-width: 500px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.game-over-title {
+  font-size: 3rem;
+  margin: 0 0 1rem 0;
+  color: #ff4444;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.game-over-winner {
+  font-size: 1.5rem;
+  margin: 0 0 1rem 0;
+  color: #ffff44;
+}
+
+.leaderboard-title {
+  font-size: 1.2rem;
+  margin: 1rem 0 0.5rem 0;
+  color: #ffffff;
+  border-bottom: 1px solid #444;
+  padding-bottom: 0.5rem;
+}
+
+.leaderboard-list {
+  margin: 1rem 0;
+}
+
+.leaderboard-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  margin: 0.25rem 0;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.leaderboard-row.rank-1 {
+  background: linear-gradient(90deg, rgba(255, 215, 0, 0.3), rgba(255, 215, 0, 0.1));
+  border: 1px solid #ffd700;
+}
+
+.leaderboard-row.rank-2 {
+  background: linear-gradient(90deg, rgba(192, 192, 192, 0.3), rgba(192, 192, 192, 0.1));
+  border: 1px solid #c0c0c0;
+}
+
+.leaderboard-row.rank-3 {
+  background: linear-gradient(90deg, rgba(205, 127, 50, 0.3), rgba(205, 127, 50, 0.1));
+  border: 1px solid #cd7f32;
+}
+
+.leaderboard-row .rank {
+  font-weight: bold;
+  min-width: 80px;
+  text-align: left;
+}
+
+.leaderboard-row .nickname {
+  flex: 1;
+  text-align: center;
+  font-weight: bold;
+}
+
+.leaderboard-row .lives {
+  min-width: 100px;
+  text-align: right;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.return-lobby-message {
+  font-size: 1rem;
+  margin: 1rem 0 0 0;
+  color: #cccccc;
+  font-style: italic;
+}
+
+.spectator-overlay {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 2px solid #ffff44;
+  z-index: 100;
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+.spectator-message h3 {
+  margin: 0 0 0.5rem 0;
+  color: #ffff44;
+  font-size: 1.2rem;
+}
+
+.spectator-message p {
+  margin: 0;
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+
+
+.leaderboard-row .nickname {
+  flex: 1;
+  text-align: center;
+  font-weight: bold;
+}
+
+.leaderboard-row .lives {
+  min-width: 100px;
+  text-align: right;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.return-lobby-message {
+  font-size: 1rem;
+  margin: 1rem 0 0 0;
+  color: #cccccc;
+  font-style: italic;
+}
+
+.spectator-overlay {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 2px solid #ffff44;
+  z-index: 100;
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+.spectator-message h3 {
+  margin: 0 0 0.5rem 0;
+  color: #ffff44;
+  font-size: 1.2rem;
+}
+
+.spectator-message p {
+  margin: 0;
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.leaderboard-row .nickname {
+  flex: 1;
+  text-align: center;
+  font-weight: bold;
+}
+
+.leaderboard-row .lives {
+  min-width: 100px;
+  text-align: right;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.new-game-button {
+  background: #44ff44;
+  color: #000;
+  border: none;
+  padding: 10px 20px;
+  font-size: 1rem;
+  font-weight: bold;
+  border-radius: 5px;
+  cursor: pointer;
+  margin-top: 1rem;
+  transition: background-color 0.3s;
+}
+
+.new-game-button:hover {
+  background: #66ff66;
+}
+
+.spectator-overlay {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 2px solid #ffff44;
+  z-index: 100;
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+.spectator-message h3 {
+  margin: 0 0 0.5rem 0;
+  color: #ffff44;
+  font-size: 1.2rem;
+}
+
+.spectator-message p {
+  margin: 0;
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

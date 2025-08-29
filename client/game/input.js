@@ -1,14 +1,14 @@
-
-
 export class InputHandler {
     constructor() {
         this.keysPressed = {};
+        this.disabled = false;
         this.setupEventListeners();
     }
+
     setupEventListeners() {
         document.addEventListener('keydown', (e) => {
-            // Ignore keys if typing in chat
-            if (document.activeElement.matches("input, textarea")) return;
+            // Ignore keys if typing in chat or input is disabled
+            if (this.disabled || document.activeElement.matches("input, textarea")) return;
 
             const key = e.key.toLowerCase();
             this.keysPressed[key] = true;
@@ -22,14 +22,14 @@ export class InputHandler {
         });
 
         document.addEventListener('keyup', (e) => {
-            if (document.activeElement.matches("input, textarea")) return;
+            if (this.disabled || document.activeElement.matches("input, textarea")) return;
             this.keysPressed[e.key.toLowerCase()] = false;
         });
     }
 
-
-
     getMovementInput() {
+        if (this.disabled) return { dx: 0, dy: 0 };
+
         let dx = 0;
         let dy = 0;
 
@@ -42,10 +42,21 @@ export class InputHandler {
     }
 
     isBombKeyPressed() {
+        if (this.disabled) return false;
         return this.keysPressed[' '];
     }
 
     isResetKeyPressed() {
+        if (this.disabled) return false;
         return this.keysPressed['enter'];
+    }
+
+    enable() {
+        this.disabled = false;
+    }
+
+    disable() {
+        this.disabled = true;
+        this.keysPressed = {};
     }
 }

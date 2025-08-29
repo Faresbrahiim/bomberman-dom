@@ -10,7 +10,7 @@ export class BombermanGame {
   constructor(socketManager, gameData) {
     this.socketManager = socketManager;
     this.seed = gameData.seed;
-    this.players = new Map(); 
+    this.players = new Map();
     this.localPlayerId = socketManager.playerId;
 
     this.inputHandler = new InputHandler();
@@ -102,6 +102,31 @@ export class BombermanGame {
         player.element.remove();
       }
       this.players.delete(data.playerId);
+    });
+
+    this.socketManager.on("gameOver", (data) => {
+      this.handleGameOver(data.leaderboard, data.winner);
+    });
+
+    this.socketManager.on("gameReset", (message) => {
+      this.handleGameReset(message);
+    });
+    this.socketManager.on("playerEliminated", (data) => {
+      this.handlePlayerEliminated(data);
+    });
+
+    this.socketManager.on("playerDied", (data) => {
+      const player = this.players.get(data.playerId);
+      if (player) {
+        player.lives = data.lives;
+
+        // If this is the local player and they're eliminated
+        if (data.playerId === this.localPlayerId && data.lives === 0) {
+          this.enableSpectatorMode();
+        }
+
+        this.ui.updateAllPlayersStatus(this.players);
+      }
     });
   }
 
@@ -196,16 +221,15 @@ export class BombermanGame {
     this.animationFrameId = requestAnimationFrame(() => this.gameLoop());
   }
 
-
   handleInput() {
     const localPlayer = this.players.get(this.localPlayerId);
     if (!localPlayer) return;
-  
+
     if (this.inputHandler.isBombKeyPressed()) {
       this.placeBomb();
       this.inputHandler.keysPressed[" "] = false;
     }
-  
+
     // Remove reset key handling - multiplayer games should be managed by server
   }
 
@@ -676,5 +700,240 @@ export class BombermanGame {
       cell.className = "cell empty";
     }
   }
+  enableSpectatorMode() {
+    // Disable input but keep game loop running for spectating
+    this.inputHandler.disable();
 
+    // Show spectator message
+    this.showSpectatorMessage();
+
+    if (this.chatManager) {
+      this.chatManager.addSystemMessage(
+        "You are now spectating. Watch the remaining players!"
+      );
+    }
+  }
+  showSpectatorMessage() {
+    const gameContainer = document.getElementById("gameMapContainer");
+    if (!gameContainer) return;
+  
+    // Remove existing spectator overlay if any
+    const existingOverlay = document.getElementById("spectatorOverlay");
+    if (existingOverlay) return; // Already showing
+  
+    const overlay = document.createElement("div");
+    overlay.id = "spectatorOverlay";
+    overlay.className = "spectator-overlay";
+    
+    const message = document.createElement("div");
+    message.className = "spectator-message";
+    message.innerHTML = "<h3>SPECTATOR MODE</h3><p>You have been eliminated. Watch the remaining players!</p>";
+    
+    overlay.appendChild(message);
+    gameContainer.appendChild(overlay);
+  }
+  
+  handlePlayerEliminated(data) {
+    if (this.chatManager) {
+      const suffix = this.getOrdinalSuffix(data.eliminationOrder);
+      this.chatManager.addSystemMessage(`${data.nickname} eliminated! Finished ${data.eliminationOrder}${suffix} place.`);
+    }
+  }
+
+
+  getOrdinalSuffix(num) {
+    const suffixes = ["th", "st", "nd", "rd"];
+    const value = num % 100;
+    return suffixes[(value - 20) % 10] || suffixes[value] || suffixes[0];
+  }
+  handleGameOver(leaderboard, winner) {
+    // Stop the game loop
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+  
+    // Create game over screen with leaderboard
+    this.showLeaderboard(leaderboard, winner);
+    
+    // Disable input for all players
+    this.inputHandler.disable();
+  }
+
+  showGameOverScreen(winner, message) {
+    const gameContainer = document.getElementById("gameMapContainer");
+    if (!gameContainer) return;
+
+    // Remove existing overlay if any
+    const existingOverlay = document.getElementById("gameOverOverlay");
+    if (existingOverlay) {
+      existingOverlay.remove();
+    }
+
+    // Create overlay
+    const overlay = document.createElement("div");
+    overlay.id = "gameOverOverlay";
+    overlay.className = "game-over-overlay";
+
+    const content = document.createElement("div");
+    content.className = "game-over-content";
+
+    const title = document.createElement("h1");
+    title.className = "game-over-title";
+    title.textContent = "Game Over";
+
+    const winnerText = document.createElement("h2");
+    winnerText.className = "game-over-winner";
+    winnerText.textContent = message;
+
+    const restartText = document.createElement("p");
+    restartText.className = "game-over-restart";
+    restartText.textContent = "Starting new game in 5 seconds...";
+
+    content.appendChild(title);
+    content.appendChild(winnerText);
+    content.appendChild(restartText);
+    overlay.appendChild(content);
+
+    gameContainer.appendChild(overlay);
+  }
+  handleGameReset(message) {
+    // Remove all overlays
+    const gameOverOverlay = document.getElementById("gameOverOverlay");
+    if (gameOverOverlay) gameOverOverlay.remove();
+
+    const spectatorOverlay = document.getElementById("spectatorOverlay");
+    if (spectatorOverlay) spectatorOverlay.remove();
+
+    // Reset game state
+    this.activeBombs.clear();
+    this.passThroughBombs.clear();
+
+    // Reset players to initial state
+    this.players.forEach((player, playerId) => {
+      player.lives = 3;
+      player.powerups = { bombs: 0, flames: 0, speed: 0 };
+    });
+
+    // Re-enable input for all players
+    this.inputHandler.enable();
+
+    // Regenerate map
+    this.generateMap();
+
+    // Show reset message
+    if (this.chatManager) {
+      this.chatManager.addSystemMessage(message);
+    }
+
+    // Restart game loop
+    if (!this.animationFrameId) {
+      this.gameLoop();
+    }
+  }
+  enableSpectatorMode() {
+    // Disable input but keep game loop running for spectating
+    this.inputHandler.disable();
+
+    // Show spectator message
+    this.showSpectatorMessage();
+
+    if (this.chatManager) {
+      this.chatManager.addSystemMessage(
+        "You are now spectating. Watch the remaining players!"
+      );
+    }
+  }
+  showSpectatorMessage() {
+    const gameContainer = document.getElementById("gameMapContainer");
+    if (!gameContainer) return;
+
+    // Remove existing spectator overlay if any
+    const existingOverlay = document.getElementById("spectatorOverlay");
+    if (existingOverlay) return; // Already showing
+
+    const overlay = document.createElement("div");
+    overlay.id = "spectatorOverlay";
+    overlay.className = "spectator-overlay";
+
+    const message = document.createElement("div");
+    message.className = "spectator-message";
+    message.innerHTML =
+      "<h3>SPECTATOR MODE</h3><p>You have been eliminated. Watch the remaining players!</p>";
+
+    overlay.appendChild(message);
+    gameContainer.appendChild(overlay);
+  }
+  showLeaderboard(leaderboard, winner) {
+    const gameContainer = document.getElementById("gameMapContainer");
+    if (!gameContainer) return;
+  
+    // Remove existing overlays
+    const existingOverlay = document.getElementById("gameOverOverlay");
+    if (existingOverlay) existingOverlay.remove();
+    
+    const spectatorOverlay = document.getElementById("spectatorOverlay");
+    if (spectatorOverlay) spectatorOverlay.remove();
+  
+    // Create leaderboard overlay
+    const overlay = document.createElement("div");
+    overlay.id = "gameOverOverlay";
+    overlay.className = "game-over-overlay";
+    
+    const content = document.createElement("div");
+    content.className = "game-over-content";
+    
+    const title = document.createElement("h1");
+    title.className = "game-over-title";
+    title.textContent = "Game Over";
+    
+    const winnerText = document.createElement("h2");
+    winnerText.className = "game-over-winner";
+    winnerText.textContent = winner ? `${winner.nickname} Wins!` : "No Winner";
+    
+    const leaderboardTitle = document.createElement("h3");
+    leaderboardTitle.className = "leaderboard-title";
+    leaderboardTitle.textContent = "Final Rankings";
+    
+    const leaderboardList = document.createElement("div");
+    leaderboardList.className = "leaderboard-list";
+    
+    leaderboard.forEach((player) => {
+      const playerRow = document.createElement("div");
+      playerRow.className = `leaderboard-row rank-${player.rank}`;
+      
+      const rankIcon = this.getRankIcon(player.rank);
+      const livesText = player.lives > 0 ? ` (${player.lives} lives)` : " (Eliminated)";
+      
+      playerRow.innerHTML = `
+        <span class="rank">${rankIcon} ${player.rank}${this.getOrdinalSuffix(player.rank)}</span>
+        <span class="nickname">${player.nickname}</span>
+        <span class="lives">${livesText}</span>
+      `;
+      
+      leaderboardList.appendChild(playerRow);
+    });
+    
+    const returnMessage = document.createElement("p");
+    returnMessage.className = "return-lobby-message";
+    returnMessage.textContent = "Returning to lobby in 5 seconds...";
+    
+    content.appendChild(title);
+    content.appendChild(winnerText);
+    content.appendChild(leaderboardTitle);
+    content.appendChild(leaderboardList);
+    content.appendChild(returnMessage);
+    overlay.appendChild(content);
+    
+    gameContainer.appendChild(overlay);
+  }
+  getRankIcon(rank) {
+    const icons = {
+      1: "🥇",
+      2: "🥈", 
+      3: "🥉",
+      4: "4️⃣"
+    };
+    return icons[rank] || rank;
+  }
 }
