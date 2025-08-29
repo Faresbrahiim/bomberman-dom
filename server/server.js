@@ -1,18 +1,84 @@
+// =============================================================================
+// STEP 1: IMPORTS (EXECUTED FIRST - MODULE LOADING)
+// =============================================================================
 import express from "express";
 import http from "http";
 import { WebSocketServer } from "ws";
 import path from "path";
 import { fileURLToPath } from "url";
 
+// =============================================================================
+// STEP 2: CONSTANTS AND CONFIGURATION (EXECUTED SECOND - SETUP VALUES)
+// =============================================================================
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const PORT = 3000;
+const MAX_ROOMS = 100;
+const MAX_PLAYERS_PER_ROOM = 4;
 
+// =============================================================================
+// STEP 3: GLOBAL VARIABLES (EXECUTED THIRD - STATE CONTAINERS)
+// =============================================================================
+const rooms = new Map();
+const clientRooms = new Map();
+let roomCounter = 1;
+
+// =============================================================================
+// STEP 4: EXPRESS AND HTTP SERVER SETUP (EXECUTED FOURTH - SERVER CREATION)
+// =============================================================================
 const app = express();
 const server = http.createServer(app);
 app.use(express.static(path.join(__dirname, "../client")));
+
+// =============================================================================
+// STEP 5: WEBSOCKET SERVER SETUP (EXECUTED FIFTH - WEBSOCKET CREATION)
+// =============================================================================
 const wss = new WebSocketServer({ server });
 
-// --- Room class ---
+// =============================================================================
+// STEP 6: UTILITY FUNCTIONS (DEFINED SIXTH - HELPER FUNCTIONS)
+// =============================================================================
+
+// --- STEP 6A: NICKNAME VALIDATION ---
+function validateNickname(nickname, room) {
+  if (!nickname || typeof nickname !== "string") return false;
+  if (nickname.includes("<3")) return false;
+  if (nickname.length < 3 || nickname.length > 16) return false;
+  if (!/^[a-zA-Z0-9_]+$/.test(nickname)) return false;
+
+  if (room) {
+    for (const playerData of room.clients.values()) {
+      if (playerData.nickname.toLowerCase() === nickname.toLowerCase()) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+// --- STEP 6B: BROADCASTING FUNCTIONS ---
+function broadcastToRoom(roomId, data) {
+  const room = rooms.get(roomId);
+  if (!room) return;
+  const json = JSON.stringify(data);
+  for (const client of room.clients.keys()) {
+    if (client.readyState === 1) client.send(json);
+  }
+}
+
+function broadcastPlayerCount(roomId) {
+  const room = rooms.get(roomId);
+  if (!room) return;
+  broadcastToRoom(roomId, { type: "playerCount", count: room.clients.size });
+}
+
+function broadcastChatMessage(roomId, nickname, message) {
+  broadcastToRoom(roomId, { type: "chat", message: `${nickname}: ${message}` });
+}
+
+// =============================================================================
+// STEP 7: ROOM CLASS DEFINITION (DEFINED SEVENTH - GAME LOGIC STRUCTURE)
+// =============================================================================
 class Room {
   constructor(id) {
     this.id = id;
@@ -25,6 +91,7 @@ class Room {
     this.eliminationCount = 1; // Track elimination order
   }
 
+  // --- PLAYER SPAWN POSITIONS ---
   getPlayerSpawnPosition(playerId) {
     const spawns = [
       { x: 60, y: 60 }, // Top-left
@@ -35,6 +102,7 @@ class Room {
     return spawns[playerId - 1] || spawns[0];
   }
 
+  // --- ADD PLAYER TO ROOM ---
   addPlayer(ws, nickname) {
     const playerId = this.nextPlayerId++;
     const spawnPos = this.getPlayerSpawnPosition(playerId);
@@ -54,6 +122,7 @@ class Room {
     return playerId;
   }
 
+  // --- GAME OVER LOGIC ---
   checkGameOver() {
     if (this.status !== "started") return;
 
@@ -98,6 +167,7 @@ class Room {
     }
   }
 
+  // --- RETURN TO LOBBY AFTER GAME ---
   returnToLobby() {
     this.status = "waiting";
     this.seed = null;
@@ -128,102 +198,11 @@ class Room {
   }
 }
 
-// --- Room tracking ---
-const rooms = new Map();
-const clientRooms = new Map();
-let roomCounter = 1;
+// =============================================================================
+// STEP 8: COUNTDOWN SYSTEM FUNCTIONS (DEFINED EIGHTH - GAME TIMING LOGIC)
+// =============================================================================
 
-const MAX_ROOMS = 100;
-const MAX_PLAYERS_PER_ROOM = 4;
-
-// --- Nickname validation helper ---
-function validateNickname(nickname, room) {
-  if (!nickname || typeof nickname !== "string") return false;
-  if (nickname.includes("<3")) return false;
-  if (nickname.length < 3 || nickname.length > 16) return false;
-  if (!/^[a-zA-Z0-9_]+$/.test(nickname)) return false;
-
-  if (room) {
-    for (const playerData of room.clients.values()) {
-      if (playerData.nickname.toLowerCase() === nickname.toLowerCase()) {
-        return false;
-      }
-    }
-  }
-  return true;
-}
-
-// --- Assign player to a room ---
-function assignPlayerToRoom(ws, nickname) {
-  for (const room of rooms.values()) {
-    if (
-      (room.status === "waiting" || room.status === "countdown20") &&
-      room.clients.size < MAX_PLAYERS_PER_ROOM
-    ) {
-      if (!validateNickname(nickname, room)) {
-        ws.send(
-          JSON.stringify({
-            type: "invalidNickname",
-            reason: "Nickname invalid or already taken",
-          })
-        );
-        return null;
-      }
-
-      const playerId = room.addPlayer(ws, nickname);
-      clientRooms.set(ws, room.id);
-
-      // Send playerId to the client
-      ws.send(JSON.stringify({ type: "playerIdAssigned", playerId }));
-
-      return room;
-    }
-  }
-
-  if (rooms.size < MAX_ROOMS) {
-    const newRoom = new Room(`room${roomCounter++}`);
-
-    if (!validateNickname(nickname, newRoom)) {
-      ws.send(
-        JSON.stringify({ type: "invalidNickname", reason: "Nickname invalid" })
-      );
-      return null;
-    }
-
-    const playerId = newRoom.addPlayer(ws, nickname);
-    rooms.set(newRoom.id, newRoom);
-    clientRooms.set(ws, newRoom.id);
-
-    // Send playerId to the client
-    ws.send(JSON.stringify({ type: "playerIdAssigned", playerId }));
-
-    return newRoom;
-  }
-
-  return null;
-}
-
-// --- Broadcast to room ---
-function broadcastToRoom(roomId, data) {
-  const room = rooms.get(roomId);
-  if (!room) return;
-  const json = JSON.stringify(data);
-  for (const client of room.clients.keys()) {
-    if (client.readyState === 1) client.send(json);
-  }
-}
-
-function broadcastPlayerCount(roomId) {
-  const room = rooms.get(roomId);
-  if (!room) return;
-  broadcastToRoom(roomId, { type: "playerCount", count: room.clients.size });
-}
-
-function broadcastChatMessage(roomId, nickname, message) {
-  broadcastToRoom(roomId, { type: "chat", message: `${nickname}: ${message}` });
-}
-
-// --- Countdown logic ---
+// --- 20-SECOND COUNTDOWN (WAITING FOR MORE PLAYERS) ---
 function start20SecCountdown(room) {
   if (room.status !== "waiting" && room.status !== "countdown20") return;
   room.status = "countdown20";
@@ -248,6 +227,7 @@ function start20SecCountdown(room) {
   }, 1000);
 }
 
+// --- 10-SECOND COUNTDOWN (GAME STARTING SOON) ---
 function start10SecCountdown(room) {
   room.status = "countdown10";
   room.countdownSeconds = 1;
@@ -289,15 +269,75 @@ function start10SecCountdown(room) {
   }, 1000);
 }
 
-// --- WebSocket connections ---
+// =============================================================================
+// STEP 9: ROOM MANAGEMENT FUNCTIONS (DEFINED NINTH - ROOM ASSIGNMENT LOGIC)
+// =============================================================================
+
+// --- ROOM ASSIGNMENT LOGIC ---
+function assignPlayerToRoom(ws, nickname) {
+  // Try to find an existing room with available space
+  for (const room of rooms.values()) {
+    if (
+      (room.status === "waiting" || room.status === "countdown20") &&
+      room.clients.size < MAX_PLAYERS_PER_ROOM
+    ) {
+      if (!validateNickname(nickname, room)) {
+        ws.send(
+          JSON.stringify({
+            type: "invalidNickname",
+            reason: "Nickname invalid or already taken",
+          })
+        );
+        return null;
+      }
+
+      const playerId = room.addPlayer(ws, nickname);
+      clientRooms.set(ws, room.id);
+
+      // Send playerId to the client
+      ws.send(JSON.stringify({ type: "playerIdAssigned", playerId }));
+
+      return room;
+    }
+  }
+
+  // Create a new room if no suitable room exists
+  if (rooms.size < MAX_ROOMS) {
+    const newRoom = new Room(`room${roomCounter++}`);
+
+    if (!validateNickname(nickname, newRoom)) {
+      ws.send(
+        JSON.stringify({ type: "invalidNickname", reason: "Nickname invalid" })
+      );
+      return null;
+    }
+
+    const playerId = newRoom.addPlayer(ws, nickname);
+    rooms.set(newRoom.id, newRoom);
+    clientRooms.set(ws, newRoom.id);
+
+    // Send playerId to the client
+    ws.send(JSON.stringify({ type: "playerIdAssigned", playerId }));
+
+    return newRoom;
+  }
+
+  return null;
+}
+
+// =============================================================================
+// STEP 10: WEBSOCKET EVENT LISTENERS (EXECUTED TENTH - WHEN SERVER STARTS)
+// =============================================================================
 wss.on("connection", (ws) => {
   console.log("New player connected");
 
+  // --- MESSAGE HANDLING (EXECUTED WHEN MESSAGES ARRIVE) ---
   ws.on("message", (message) => {
     try {
       const data = JSON.parse(message);
 
       switch (data.type) {
+        // --- PLAYER JOINING ---
         case "join": {
           const room = assignPlayerToRoom(ws, data.nickname);
           if (!room) return;
@@ -306,9 +346,9 @@ wss.on("connection", (ws) => {
           ws.send(JSON.stringify({ type: "roomJoined", roomId: room.id }));
           broadcastPlayerCount(room.id);
 
-          // Countdown logic
+          // Countdown logic based on player count
           if (room.clients.size === 1) {
-            // Only 1 player - do nothing
+            // Only 1 player - do nothing, wait for more
           } else if (
             room.clients.size >= 2 &&
             room.clients.size < MAX_PLAYERS_PER_ROOM
@@ -323,6 +363,7 @@ wss.on("connection", (ws) => {
           break;
         }
 
+        // --- CHAT MESSAGES ---
         case "chat": {
           const roomId = clientRooms.get(ws);
           if (!roomId) return;
@@ -334,6 +375,7 @@ wss.on("connection", (ws) => {
           break;
         }
 
+        // --- PLAYER MOVEMENT ---
         case "playerMove": {
           const roomId = clientRooms.get(ws);
           if (!roomId) return;
@@ -363,6 +405,7 @@ wss.on("connection", (ws) => {
           break;
         }
 
+        // --- BOMB PLACEMENT ---
         case "placeBomb": {
           const roomId = clientRooms.get(ws);
           if (!roomId) return;
@@ -390,6 +433,7 @@ wss.on("connection", (ws) => {
           break;
         }
 
+        // --- BOMB EXPLOSIONS ---
         case "bombExploded": {
           const roomId = clientRooms.get(ws);
           if (!roomId) return;
@@ -409,6 +453,7 @@ wss.on("connection", (ws) => {
           break;
         }
 
+        // --- WALL DESTRUCTION ---
         case "wallDestroyed": {
           const roomId = clientRooms.get(ws);
           if (!roomId) return;
@@ -428,6 +473,7 @@ wss.on("connection", (ws) => {
           break;
         }
 
+        // --- POWERUP COLLECTION ---
         case "powerupCollected": {
           const roomId = clientRooms.get(ws);
           if (!roomId) return;
@@ -448,6 +494,7 @@ wss.on("connection", (ws) => {
           break;
         }
 
+        // --- PLAYER DEATH ---
         case "playerDied": {
           const roomId = clientRooms.get(ws);
           if (!roomId) return;
@@ -484,6 +531,8 @@ wss.on("connection", (ws) => {
           }
           break;
         }
+        
+        // --- UNKNOWN MESSAGE TYPES ---
         default:
           console.warn("Unknown message type:", data.type);
       }
@@ -492,6 +541,7 @@ wss.on("connection", (ws) => {
     }
   });
 
+  // --- CONNECTION CLOSE HANDLING (EXECUTED WHEN CLIENTS DISCONNECT) ---
   ws.on("close", () => {
     const roomId = clientRooms.get(ws);
     if (roomId) {
@@ -508,6 +558,7 @@ wss.on("connection", (ws) => {
           });
         }
 
+        // Clean up empty rooms
         if (room.clients.size === 0) {
           clearInterval(room.countdownTimer);
           rooms.delete(roomId);
@@ -521,7 +572,9 @@ wss.on("connection", (ws) => {
   });
 });
 
-const PORT = 3000;
+// =============================================================================
+// STEP 11: SERVER STARTUP (EXECUTED LAST - STARTS THE SERVER)
+// =============================================================================
 server.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
