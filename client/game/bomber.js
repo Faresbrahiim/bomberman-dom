@@ -1,66 +1,127 @@
 import { GameConstants } from "./constant.js";
 import { BombermanMapGenerator } from "./Map.js";
-import { InputHandler } from "./input.js";
+import { InputHandler, createGameKeyboardInput } from "./input.js";
 import { GameUI } from "./gameUI.js";
 import { Player } from "./Player.js";
 import { Bomb } from "./Bomb.js";
+import { EventRegistry } from "../framework/eventhandler.js";
+import { VDOMManager } from "../framework/VDOMmanager.js";
+import { VNode } from "../framework/vdom.js";
 
-// Main multiplayer game class
 export class BombermanGame {
   constructor(socketManager, gameData) {
+    // networking
     this.socketManager = socketManager;
     this.seed = gameData.seed;
-    this.players = new Map();
     this.localPlayerId = socketManager.playerId;
 
-    this.inputHandler = new InputHandler();
+    // framework
+    this.eventRegistry = new EventRegistry();
+    this.inputHandler = new InputHandler(this.eventRegistry);
     this.ui = new GameUI();
+
+    // world state
+    this.players = new Map();
     this.currentMap = [];
     this.hiddenPowerups = new Map();
-    this.activeBombs = new Map(); // bombId -> Bomb object
+    this.activeBombs = new Map();   // bombId -> Bomb
     this.passThroughBombs = new Set();
     this.mapWidth = 15;
     this.mapHeight = 11;
     this.animationFrameId = null;
 
-    // Initialize players from game data
+    // players from lobby/gameData
     this.initializePlayers(gameData.players);
 
-    // Set up socket event listeners
+    // vdom root (we’ll render everything inside gameMapContainer)
+    const container = document.getElementById("gameMapContainer");
+    if (!container) throw new Error("#gameMapContainer not found");
+    this.vdom = new VDOMManager(container, () => this.render());
+    
+    // sockets
     this.setupSocketListeners();
   }
 
-  initializePlayers(playersData) {
-    playersData.forEach((playerData) => {
-      const player = new Player(
-        playerData.gridPosition.x * GameConstants.TILE_SIZE,
-        playerData.gridPosition.y * GameConstants.TILE_SIZE,
-        playerData.playerId
-      );
-      player.nickname = playerData.nickname;
-      player.lives = playerData.lives;
-      player.powerups = playerData.powerups;
-      player.isLocal = playerData.playerId === this.localPlayerId;
+  // ---------- RENDER ----------
+  render() {
+    const W = this.mapWidth * GameConstants.TILE_SIZE;
+    const H = this.mapHeight * GameConstants.TILE_SIZE;
 
-      this.players.set(playerData.playerId, player);
+    const mapVNode = this.ui.renderMap(
+      this.currentMap,
+      this.mapWidth,
+      this.mapHeight,
+      this.hiddenPowerups
+    );
+
+    const bombsVNode = new VNode("div", {
+      class: "layer bombs-layer",
+      style: "position:absolute;inset:0;z-index:5;pointer-events:none;"
+    }, Array.from(this.activeBombs.values()).map(b => b.render()));
+
+    const playersVNode = new VNode("div", {
+      class: "layer players-layer",
+      style: "position:absolute;inset:0;z-index:10;pointer-events:none;"
+    }, Array.from(this.players.values()).map(p => p.render()));
+
+    const hudVNode = new VNode("div", { id: "playerStatusArea" }, [
+      this.ui.renderPlayersStatus(this.players)
+    ]);
+
+    // hidden input for keyboard capture (no addEventListener)
+    const keyboardVNode = createGameKeyboardInput(this.eventRegistry);
+
+    return new VNode("div", {
+      id: "game-root",
+      style: `position:relative;width:${W}px;height:${H}px;`
+    }, [
+      mapVNode,
+      bombsVNode,
+      playersVNode,
+      hudVNode,
+      keyboardVNode
+    ]);
+  }
+
+  requestRender() {
+    // trigger re-render; we don’t really use state here, we just force refresh
+    this.vdom.setState({ tick: (this.vdom.state.tick || 0) + 1 });
+  }
+
+  // ---------- LIFECYCLE ----------
+  init() {
+    this.generateMap();
+    this.vdom.mount();        // initial paint
+    this.gameLoop();
+  }
+
+  destroy() {
+    if (this.animationFrameId) cancelAnimationFrame(this.animationFrameId);
+    this.inputHandler.destroy();
+  }
+
+  // ---------- PLAYERS ----------
+  initializePlayers(playersData) {
+    playersData.forEach((pd) => {
+      const px = pd.gridPosition.x * GameConstants.TILE_SIZE;
+      const py = pd.gridPosition.y * GameConstants.TILE_SIZE;
+      const player = new Player(px, py, pd.playerId);
+      player.nickname = pd.nickname;
+      player.lives = pd.lives;
+      player.powerups = pd.powerups;
+      player.isLocal = pd.playerId === this.localPlayerId;
+      this.players.set(pd.playerId, player);
     });
   }
 
+  // ---------- SOCKETS ----------
   setupSocketListeners() {
     this.socketManager.on("playerMoved", (data) => {
-      const player = this.players.get(data.playerId);
-      if (player && !player.isLocal) {
-        player.position = data.position;
-        player.gridPosition = data.gridPosition;
-        player.updateElementPosition();
-
-        // Apply animation with movement data
-        if (data.movement) {
-          player.updateAnimation(data.movement.dx, data.movement.dy);
-        } else {
-          // Stop animation if no movement data
-          player.updateAnimation(0, 0);
-        }
+      const p = this.players.get(data.playerId);
+      if (p && !p.isLocal) {
+        p.position = data.position;
+        p.updateAnimation(data.movement?.dx || 0, data.movement?.dy || 0);
+        this.requestRender();
       }
     });
 
@@ -80,822 +141,432 @@ export class BombermanGame {
 
     this.socketManager.on("powerupCollected", (data) => {
       if (data.playerId !== this.localPlayerId) {
-        this.handlePowerupCollected(
-          data.playerId,
-          data.position,
-          data.powerupType
-        );
+        this.handlePowerupCollected(data.playerId, data.position, data.powerupType);
       }
     });
 
     this.socketManager.on("playerDied", (data) => {
-      const player = this.players.get(data.playerId);
-      if (player) {
-        // Update player lives from server data
-        player.lives = data.lives;
-
-        // Apply dead player visual effect if lives reach 0
-        if (data.lives === 0) {
-          player.applyDeadPlayerEffect();
-        }
-
-        // Handle local player elimination
-        if (data.playerId === this.localPlayerId && data.lives === 0) {
-          this.enableSpectatorMode();
-        }
-
-        // Update UI for all players
-        this.ui.updateAllPlayersStatus(this.players);
+      const p = this.players.get(data.playerId);
+      if (!p) return;
+      p.lives = data.lives;
+      if (data.lives === 0 && data.playerId === this.localPlayerId) {
+        this.enableSpectatorMode();
       }
+      this.requestRender();
     });
+
     this.socketManager.on("playerDisconnected", (data) => {
-      const player = this.players.get(data.playerId);
-      if (player && player.element) {
-        player.element.remove();
-      }
       this.players.delete(data.playerId);
+      this.requestRender();
     });
 
     this.socketManager.on("gameOver", (data) => {
       this.handleGameOver(data.leaderboard, data.winner);
     });
 
-    this.socketManager.on("gameReset", (message) => {
-      this.handleGameReset(message);
-    });
+    this.socketManager.on("gameReset", (msg) => this.handleGameReset(msg));
 
-    this.socketManager.on("playerEliminated", (data) => {
-      this.handlePlayerEliminated(data);
-    });
+    this.socketManager.on("playerEliminated", (data) => this.handlePlayerEliminated(data));
   }
 
-  init() {
-    this.generateMap();
-    this.createPlayerElements();
-    this.gameLoop();
-  }
-
-  createPlayerElements() {
-    const gameContainer = document.getElementById("gameMapContainer");
-    if (!gameContainer) {
-      console.error("Game container not found!");
-      return;
-    }
-
-    this.players.forEach((player, playerId) => {
-      const playerElement = document.createElement("div");
-      playerElement.id = `player-${playerId}`;
-      playerElement.className = `player ${player.isLocal ? "local-player" : "remote-player"
-        }`;
-      playerElement.style.position = "absolute";
-      playerElement.style.width = GameConstants.TILE_SIZE + "px";
-      playerElement.style.height = GameConstants.TILE_SIZE + "px";
-      playerElement.style.zIndex = "10";
-
-      gameContainer.appendChild(playerElement);
-      player.setElement(playerElement);
-      player.updateElementPosition();
-
-      // Initialize sprite for remote players
-      if (!player.isLocal) {
-        player.updateAnimation(0, 0); // Set initial sprite
-      }
-    });
-  }
-
+  // ---------- MAP ----------
   generateMap() {
-    const generator = new BombermanMapGenerator(
-      this.seed,
-      this.mapWidth,
-      this.mapHeight,
-      65,
-      30
-    );
-    const result = generator.generate();
-
+    const gen = new BombermanMapGenerator(this.seed, this.mapWidth, this.mapHeight, 65, 30);
+    const result = gen.generate();
     this.currentMap = result.map;
     this.hiddenPowerups = result.hiddenPowerups;
-
-    // Reset bombs
     this.activeBombs.clear();
     this.passThroughBombs.clear();
-
-    this.ui.updateAllPlayersStatus(this.players);
-    this.ui.renderMap(
-      this.currentMap,
-      this.mapWidth,
-      this.mapHeight,
-      this.hiddenPowerups
-    );
+    this.requestRender();
   }
 
-  updateRemotePlayerAnimations() {
-    this.players.forEach((player, playerId) => {
-      if (!player.isLocal && player.isMoving) {
-        // Continue animation for moving remote players
-        player.frameTick++;
-        if (player.frameTick >= GameConstants.FRAME_SPEED) {
-          player.frameIndex =
-            (player.frameIndex + 1) % GameConstants.FRAMES_PER_ROW;
-          player.frameTick = 0;
-          player.updateSprite();
-        }
-      }
-    });
-  }
-
+  // ---------- LOOP ----------
   gameLoop() {
     this.handleInput();
     this.updateLocalPlayerPosition();
-    this.updateRemotePlayerAnimations();
-
+    this.updateAnimations();
+    this.requestRender();
     this.animationFrameId = requestAnimationFrame(() => this.gameLoop());
   }
 
+  updateAnimations() {
+    // Remote players keep animating while moving
+    this.players.forEach(p => {
+      if (!p.isLocal && p.isMoving) {
+        p.frameTick++;
+        if (p.frameTick >= GameConstants.FRAME_SPEED) {
+          p.frameIndex = (p.frameIndex + 1) % GameConstants.FRAMES_PER_ROW;
+          p.frameTick = 0;
+        }
+      }
+    });
+    // Bomb sprites
+    this.activeBombs.forEach(b => b.updateAnimation());
+  }
+
+  // ---------- INPUT & MOVEMENT ----------
   handleInput() {
-    const localPlayer = this.players.get(this.localPlayerId);
-    if (!localPlayer) return;
+    const me = this.players.get(this.localPlayerId);
+    if (!me) return;
 
     if (this.inputHandler.isBombKeyPressed()) {
       this.placeBomb();
+      // clear key so it’s not spammed
       this.inputHandler.keysPressed[" "] = false;
+      this.inputHandler.keysPressed["spacebar"] = false;
     }
   }
 
   updateLocalPlayerPosition() {
-    const localPlayer = this.players.get(this.localPlayerId);
-    if (!localPlayer) return;
+    const me = this.players.get(this.localPlayerId);
+    if (!me) return;
 
-    const oldPosition = { ...localPlayer.position };
+    const old = { ...me.position };
+    this.updatePassThroughBombs(me);
 
-    this.updatePassThroughBombs(localPlayer);
+    const mv = this.inputHandler.getMovementInput();
+    let dx = mv.dx * me.getCurrentSpeed();
+    let dy = mv.dy * me.getCurrentSpeed();
 
-    const movement = this.inputHandler.getMovementInput();
-    let dx = movement.dx * localPlayer.getCurrentSpeed();
-    let dy = movement.dy * localPlayer.getCurrentSpeed();
-
-    // Corner assistance for horizontal movement
-    if (
-      dx !== 0 &&
-      this.isColliding(localPlayer.position.x + dx, localPlayer.position.y)
-    ) {
-      const gridY = Math.floor(
-        (localPlayer.position.y + GameConstants.TILE_SIZE / 2) /
-        GameConstants.TILE_SIZE
-      );
-      const laneCenterY = gridY * GameConstants.TILE_SIZE;
-
-      if (
-        Math.abs(localPlayer.position.y - laneCenterY) <=
-        GameConstants.CORNER_HELP_RANGE
-      ) {
-        if (!this.isColliding(localPlayer.position.x + dx, laneCenterY)) {
-          localPlayer.position.y = laneCenterY;
-        }
+    // corner assist (horizontal)
+    if (dx !== 0 && this.isColliding(me.position.x + dx, me.position.y)) {
+      const gridY = Math.floor((me.position.y + GameConstants.TILE_SIZE / 2) / GameConstants.TILE_SIZE);
+      const laneY = gridY * GameConstants.TILE_SIZE;
+      if (Math.abs(me.position.y - laneY) <= GameConstants.CORNER_HELP_RANGE &&
+          !this.isColliding(me.position.x + dx, laneY)) {
+        me.position.y = laneY;
+      }
+    }
+    // corner assist (vertical)
+    if (dy !== 0 && this.isColliding(me.position.x, me.position.y + dy)) {
+      const gridX = Math.floor((me.position.x + GameConstants.TILE_SIZE / 2) / GameConstants.TILE_SIZE);
+      const laneX = gridX * GameConstants.TILE_SIZE;
+      if (Math.abs(me.position.x - laneX) <= GameConstants.CORNER_HELP_RANGE &&
+          !this.isColliding(laneX, me.position.y + dy)) {
+        me.position.x = laneX;
       }
     }
 
-    // Corner assistance for vertical movement
-    if (
-      dy !== 0 &&
-      this.isColliding(localPlayer.position.x, localPlayer.position.y + dy)
-    ) {
-      const gridX = Math.floor(
-        (localPlayer.position.x + GameConstants.TILE_SIZE / 2) /
-        GameConstants.TILE_SIZE
-      );
-      const laneCenterX = gridX * GameConstants.TILE_SIZE;
+    // apply movement if not colliding
+    let actualDx = 0, actualDy = 0;
+    const nx = me.position.x + dx;
+    if (!this.isColliding(nx, me.position.y)) { me.position.x = nx; actualDx = dx; }
+    const ny = me.position.y + dy;
+    if (!this.isColliding(me.position.x, ny)) { me.position.y = ny; actualDy = dy; }
 
-      if (
-        Math.abs(localPlayer.position.x - laneCenterX) <=
-        GameConstants.CORNER_HELP_RANGE
-      ) {
-        if (!this.isColliding(laneCenterX, localPlayer.position.y + dy)) {
-          localPlayer.position.x = laneCenterX;
-        }
-      }
-    }
+    // powerups + animation
+    this.checkPowerupCollection(me);
+    me.updateAnimation(actualDx, actualDy);
 
-    // Apply movement and track actual movement
-    let actualDx = 0;
-    let actualDy = 0;
-
-    const newX = localPlayer.position.x + dx;
-    if (!this.isColliding(newX, localPlayer.position.y)) {
-      localPlayer.position.x = newX;
-      actualDx = dx;
-    }
-
-    const newY = localPlayer.position.y + dy;
-    if (!this.isColliding(localPlayer.position.x, newY)) {
-      localPlayer.position.y = newY;
-      actualDy = dy;
-    }
-
-    localPlayer.updateElementPosition();
-    this.checkPowerupCollection(localPlayer);
-
-    // Update animation based on ACTUAL movement, not input
-    localPlayer.updateAnimation(actualDx, actualDy);
-
-    // Send position update if moved
-    const newGridPosition = localPlayer.getGridPosition();
-    if (
-      oldPosition.x !== localPlayer.position.x ||
-      oldPosition.y !== localPlayer.position.y
-    ) {
-      // Calculate normalized movement direction based on actual movement
-      const movementDirection = {
-        dx: actualDx !== 0 ? (actualDx > 0 ? 1 : -1) : 0,
-        dy: actualDy !== 0 ? (actualDy > 0 ? 1 : -1) : 0,
-      };
-
-      this.socketManager.sendPlayerMove(
-        localPlayer.position,
-        newGridPosition,
-        movementDirection
-      );
+    // broadcast if moved
+    if (old.x !== me.position.x || old.y !== me.position.y) {
+      const grid = me.getGridPosition();
+      const dir = { dx: actualDx ? (actualDx > 0 ? 1 : -1) : 0,
+                    dy: actualDy ? (actualDy > 0 ? 1 : -1) : 0 };
+      this.socketManager.sendPlayerMove(me.position, grid, dir);
     }
   }
 
-
-  isSolid(cellType, gridX, gridY) {
-    if (
-      cellType === GameConstants.CELL_TYPES.WALL ||
-      cellType === GameConstants.CELL_TYPES.DESTRUCTIBLE
-    ) {
-      return true;
-    }
-
+  // ---------- COLLISIONS ----------
+  isSolid(cellType, gx, gy) {
+    if (cellType === GameConstants.CELL_TYPES.WALL ||
+        cellType === GameConstants.CELL_TYPES.DESTRUCTIBLE) return true;
     if (cellType === GameConstants.CELL_TYPES.BOMB) {
-      return !this.passThroughBombs.has(`${gridX},${gridY}`);
+      return !this.passThroughBombs.has(`${gx},${gy}`);
     }
-
     return false;
   }
 
   isColliding(px, py) {
-    const boxLeft = px + GameConstants.COLLISION_GRACE;
-    const boxRight =
-      px + GameConstants.TILE_SIZE - 1 - GameConstants.COLLISION_GRACE;
-    const boxTop = py + GameConstants.COLLISION_GRACE;
-    const boxBottom =
-      py + GameConstants.TILE_SIZE - 1 - GameConstants.COLLISION_GRACE;
+    const left   = px + GameConstants.COLLISION_GRACE;
+    const right  = px + GameConstants.TILE_SIZE - 1 - GameConstants.COLLISION_GRACE;
+    const top    = py + GameConstants.COLLISION_GRACE;
+    const bottom = py + GameConstants.TILE_SIZE - 1 - GameConstants.COLLISION_GRACE;
 
-    const pointsToCheck = [
-      { x: boxLeft, y: boxTop },
-      { x: boxRight, y: boxTop },
-      { x: boxLeft, y: boxBottom },
-      { x: boxRight, y: boxBottom },
+    const points = [
+      { x: left,  y: top    },
+      { x: right, y: top    },
+      { x: left,  y: bottom },
+      { x: right, y: bottom },
     ];
 
-    for (const point of pointsToCheck) {
-      const gridX = Math.floor(point.x / GameConstants.TILE_SIZE);
-      const gridY = Math.floor(point.y / GameConstants.TILE_SIZE);
-
-      if (
-        gridX < 0 ||
-        gridX >= this.mapWidth ||
-        gridY < 0 ||
-        gridY >= this.mapHeight
-      ) {
-        return true;
-      }
-
-      if (this.isSolid(this.currentMap[gridY][gridX], gridX, gridY)) {
-        return true;
-      }
+    for (const p of points) {
+      const gx = Math.floor(p.x / GameConstants.TILE_SIZE);
+      const gy = Math.floor(p.y / GameConstants.TILE_SIZE);
+      if (gx < 0 || gx >= this.mapWidth || gy < 0 || gy >= this.mapHeight) return true;
+      if (this.isSolid(this.currentMap[gy][gx], gx, gy)) return true;
     }
-
     return false;
   }
 
   updatePassThroughBombs(player) {
-    const boxLeft = player.position.x + GameConstants.COLLISION_GRACE;
-    const boxRight =
-      player.position.x +
-      GameConstants.TILE_SIZE -
-      1 -
-      GameConstants.COLLISION_GRACE;
-    const boxTop = player.position.y + GameConstants.COLLISION_GRACE;
-    const boxBottom =
-      player.position.y +
-      GameConstants.TILE_SIZE -
-      1 -
-      GameConstants.COLLISION_GRACE;
+    const left   = player.position.x + GameConstants.COLLISION_GRACE;
+    const right  = player.position.x + GameConstants.TILE_SIZE - 1 - GameConstants.COLLISION_GRACE;
+    const top    = player.position.y + GameConstants.COLLISION_GRACE;
+    const bottom = player.position.y + GameConstants.TILE_SIZE - 1 - GameConstants.COLLISION_GRACE;
 
     for (const key of [...this.passThroughBombs]) {
       const [bx, by] = key.split(",").map(Number);
-      const bombLeft = bx * GameConstants.TILE_SIZE;
-      const bombRight = bombLeft + GameConstants.TILE_SIZE;
-      const bombTop = by * GameConstants.TILE_SIZE;
-      const bombBottom = bombTop + GameConstants.TILE_SIZE;
+      const bLeft   = bx * GameConstants.TILE_SIZE;
+      const bRight  = bLeft + GameConstants.TILE_SIZE;
+      const bTop    = by * GameConstants.TILE_SIZE;
+      const bBottom = bTop + GameConstants.TILE_SIZE;
 
-      const stillTouching =
-        boxRight > bombLeft &&
-        boxLeft < bombRight &&
-        boxBottom > bombTop &&
-        boxTop < bombBottom;
-
-      if (!stillTouching) {
-        this.passThroughBombs.delete(key);
-      }
+      const still = right > bLeft && left < bRight && bottom > bTop && top < bBottom;
+      if (!still) this.passThroughBombs.delete(key);
     }
   }
 
+  // ---------- POWERUPS ----------
   checkPowerupCollection(player) {
-    const gridPos = player.getGridPosition();
-    const cellType = this.currentMap[gridPos.y][gridPos.x];
-
-    if (
-      [
-        GameConstants.CELL_TYPES.BOMB_POWERUP,
-        GameConstants.CELL_TYPES.FLAME_POWERUP,
-        GameConstants.CELL_TYPES.SPEED_POWERUP,
-      ].includes(cellType)
-    ) {
-      player.collectPowerup(cellType);
-      this.currentMap[gridPos.y][gridPos.x] = GameConstants.CELL_TYPES.EMPTY;
-
-      const cellElement = document.querySelector(
-        `[data-x="${gridPos.x}"][data-y="${gridPos.y}"]`
-      );
-      if (cellElement) {
-        cellElement.className = "cell empty";
-      }
-
-      this.ui.updateAllPlayersStatus(this.players);
-
-      // Notify other players
-      this.socketManager.sendPowerupCollected(gridPos, cellType);
+    const g = player.getGridPosition();
+    const t = this.currentMap[g.y][g.x];
+    if ([GameConstants.CELL_TYPES.BOMB_POWERUP,
+         GameConstants.CELL_TYPES.FLAME_POWERUP,
+         GameConstants.CELL_TYPES.SPEED_POWERUP].includes(t)) {
+      player.collectPowerup(t);
+      this.currentMap[g.y][g.x] = GameConstants.CELL_TYPES.EMPTY;
+      this.socketManager.sendPowerupCollected(g, t);
+      this.requestRender();
     }
   }
 
-  handlePowerupCollected(playerId, position, powerupType) {
-    const player = this.players.get(playerId);
-    if (player) {
-      player.collectPowerup(powerupType);
-      this.currentMap[position.y][position.x] = GameConstants.CELL_TYPES.EMPTY;
-
-      const cellElement = document.querySelector(
-        `[data-x="${position.x}"][data-y="${position.y}"]`
-      );
-      if (cellElement) {
-        cellElement.className = "cell empty";
-      }
-
-      this.ui.updateAllPlayersStatus(this.players);
-    }
+  handlePowerupCollected(playerId, pos, type) {
+    const p = this.players.get(playerId);
+    if (!p) return;
+    p.collectPowerup(type);
+    this.currentMap[pos.y][pos.x] = GameConstants.CELL_TYPES.EMPTY;
+    this.requestRender();
   }
 
+  // ---------- BOMBS ----------
   placeBomb() {
-    const localPlayer = this.players.get(this.localPlayerId);
-    if (!localPlayer) return;
+    const me = this.players.get(this.localPlayerId);
+    if (!me) return;
+    const g = me.getGridPosition();
+    const maxBombs = 1 + me.powerups.bombs;
 
-    const gridPos = localPlayer.getGridPosition();
-    const maxBombs = 1 + localPlayer.powerups.bombs;
-
-    // Count bombs placed by this player
-    let playerBombs = 0;
-    for (const bomb of this.activeBombs.values()) {
-      if (bomb.playerId === this.localPlayerId) {
-        playerBombs++;
-      }
-    }
-
-    if (
-      playerBombs >= maxBombs ||
-      this.currentMap[gridPos.y][gridPos.x] === GameConstants.CELL_TYPES.BOMB
-    ) {
-      return;
-    }
+    let mine = 0;
+    for (const b of this.activeBombs.values()) if (b.playerId === this.localPlayerId) mine++;
+    if (mine >= maxBombs || this.currentMap[g.y][g.x] === GameConstants.CELL_TYPES.BOMB) return;
 
     const bombId = `${this.localPlayerId}_${Date.now()}`;
-    this.placeBombAt(gridPos, bombId, this.localPlayerId);
-
-    // Notify other players
-    this.socketManager.sendPlaceBomb(gridPos);
+    this.placeBombAt(g, bombId, this.localPlayerId);
+    this.socketManager.sendPlaceBomb(g);
   }
 
-  placeBombAt(position, bombId, playerId) {
-    const bomb = new Bomb(position.x, position.y, bombId, playerId);
-    this.currentMap[position.y][position.x] = GameConstants.CELL_TYPES.BOMB;
-    this.activeBombs.set(bombId, bomb);
+  placeBombAt(pos, bombId, playerId) {
+    const b = new Bomb(pos.x, pos.y, bombId, playerId);
+    this.currentMap[pos.y][pos.x] = GameConstants.CELL_TYPES.BOMB;
+    this.activeBombs.set(bombId, b);
 
-    // Only local player gets pass-through
     if (playerId === this.localPlayerId) {
-      this.passThroughBombs.add(`${position.x},${position.y}`);
+      this.passThroughBombs.add(`${pos.x},${pos.y}`);
+      b.startTimer((x, y) => this.explodeBomb(x, y, bombId));
     }
-
-    const cellElement = document.querySelector(
-      `[data-x="${position.x}"][data-y="${position.y}"]`
-    );
-    if (cellElement) {
-      cellElement.className = "cell bomb";
-      // Set the bomb element for animation
-      bomb.setElement(cellElement);
-    }
-
-    // Only the bomb owner handles the explosion timing
-    if (playerId === this.localPlayerId) {
-      bomb.startTimer((x, y) => this.explodeBomb(x, y, bombId));
-    }
+    this.requestRender();
   }
 
   explodeBomb(x, y, bombId) {
-    const bomb = this.activeBombs.get(bombId);
-    if (!bomb || bomb.exploded) return;
+    const b = this.activeBombs.get(bombId);
+    if (!b || b.exploded) return;
 
-    // Stop bomb animation and clean up
-    bomb.explode();
+    b.explode();
     this.activeBombs.delete(bombId);
     this.currentMap[y][x] = GameConstants.CELL_TYPES.EMPTY;
 
-    const player = this.players.get(bomb.playerId);
-    const flamePower = player ? player.powerups.flames + 1 : 1;
+    const owner = this.players.get(b.playerId);
+    const range = owner ? owner.powerups.flames + 1 : 1;
 
-    const explosionCells = [];
-    explosionCells.push({ x, y });
+    const cells = [{ x, y }];
+    const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+    dirs.forEach(([dx, dy]) => {
+      for (let i = 1; i <= range; i++) {
+        const nx = x + dx * i, ny = y + dy * i;
+        if (!this.currentMap[ny] || this.currentMap[ny][nx] == null ||
+            this.currentMap[ny][nx] === GameConstants.CELL_TYPES.WALL) break;
 
-    const directions = [
-      [1, 0],
-      [-1, 0],
-      [0, 1],
-      [0, -1],
-    ];
-
-    directions.forEach(([dx, dy]) => {
-      for (let i = 1; i <= flamePower; i++) {
-        const nx = x + dx * i;
-        const ny = y + dy * i;
-
-        if (
-          !this.currentMap[ny] ||
-          this.currentMap[ny][nx] === undefined ||
-          this.currentMap[ny][nx] === GameConstants.CELL_TYPES.WALL
-        ) {
-          break;
-        }
-
-        explosionCells.push({ x: nx, y: ny });
-
-        // Don't break on bombs - let the flame pass through them
-        // Chain explosion will be handled in handleExplosionAt
-        const shouldStop =
-          this.currentMap[ny][nx] === GameConstants.CELL_TYPES.DESTRUCTIBLE;
-        if (shouldStop) break;
+        cells.push({ x: nx, y: ny });
+        if (this.currentMap[ny][nx] === GameConstants.CELL_TYPES.DESTRUCTIBLE) break;
       }
     });
 
-    // Handle explosion effects locally and notify others
-    this.handleExplosionCells(explosionCells);
-    this.socketManager.sendBombExploded(bombId, explosionCells);
+    this.handleExplosionCells(cells);
+    this.socketManager.sendBombExploded(bombId, cells);
+    this.requestRender();
   }
 
-  handleBombExplosion(bombId, explosionCells) {
-    const bomb = this.activeBombs.get(bombId);
-    if (bomb) {
-      bomb.explode(); // This will stop the animation
+  handleBombExplosion(bombId, cells) {
+    const b = this.activeBombs.get(bombId);
+    if (b) {
+      b.explode();
       this.activeBombs.delete(bombId);
     }
-
-    this.handleExplosionCells(explosionCells);
+    this.handleExplosionCells(cells);
+    this.requestRender();
   }
 
-  handleExplosionCells(explosionCells) {
-    explosionCells.forEach((cell) => {
-      this.handleExplosionAt(cell.x, cell.y);
-    });
+  handleExplosionCells(cells) {
+    cells.forEach(c => this.handleExplosionAt(c.x, c.y));
   }
 
   handleExplosionAt(x, y) {
-    const cellElement = document.querySelector(
-      `[data-x="${x}"][data-y="${y}"]`
-    );
-    const cellType = this.currentMap[y][x];
-
-    // Check if any player is hit
-    this.players.forEach((player) => {
-      const playerGridPos = player.getGridPosition();
-      if (playerGridPos.x === x && playerGridPos.y === y) {
-        if (player.isLocal) {
-          this.socketManager.sendPlayerDied();
-        }
+    // player hits
+    this.players.forEach((p) => {
+      const g = p.getGridPosition();
+      if (g.x === x && g.y === y && p.isLocal) {
+        this.socketManager.sendPlayerDied();
       }
     });
 
-    if (cellType === GameConstants.CELL_TYPES.DESTRUCTIBLE) {
+    const type = this.currentMap[y][x];
+    if (type === GameConstants.CELL_TYPES.DESTRUCTIBLE) {
       this.destroyWall(x, y);
-    } else if (cellType === GameConstants.CELL_TYPES.BOMB) {
-      // Handle chain explosion
-      const chainBomb = Array.from(this.activeBombs.values()).find(
-        (b) => b.x === x && b.y === y && !b.exploded
-      );
-      if (chainBomb) {
-        // Trigger chain explosion with slight delay for visual effect
-        setTimeout(() => {
-          if (this.activeBombs.has(chainBomb.bombId) && !chainBomb.exploded) {
-            this.explodeBomb(chainBomb.x, chainBomb.y, chainBomb.bombId);
-          }
-        }, 100);
-      }
+    } else if (type === GameConstants.CELL_TYPES.BOMB) {
+      const chain = [...this.activeBombs.values()].find(b => b.x === x && b.y === y && !b.exploded);
+      if (chain) setTimeout(() => {
+        if (this.activeBombs.has(chain.bombId) && !chain.exploded) {
+          this.explodeBomb(chain.x, chain.y, chain.bombId);
+        }
+      }, 100);
     }
 
-    // Visual flame effect (rest of the method remains the same)
-    if (cellElement) {
-      cellElement.style.backgroundImage = "";
-      cellElement.style.backgroundPosition = "";
-      cellElement.style.backgroundSize = "";
-
-      cellElement.classList.add("flame");
+    // quick visual flame (direct DOM tweak is OK for effect)
+    const cell = document.querySelector(`[data-x="${x}"][data-y="${y}"]`);
+    if (cell) {
+      cell.classList.add("flame");
       setTimeout(() => {
-        const finalCellType = this.currentMap[y][x];
-        cellElement.className = "cell";
-
-        cellElement.style.backgroundImage = "";
-        cellElement.style.backgroundPosition = "";
-        cellElement.style.backgroundSize = "";
-
-        switch (finalCellType) {
-          case GameConstants.CELL_TYPES.EMPTY:
-            cellElement.classList.add("empty");
-            break;
-          case GameConstants.CELL_TYPES.PLAYER_SPAWN:
-            cellElement.classList.add("player-spawn");
-            break;
-          case GameConstants.CELL_TYPES.BOMB_POWERUP:
-            cellElement.classList.add("bomb-powerup");
-            break;
-          case GameConstants.CELL_TYPES.FLAME_POWERUP:
-            cellElement.classList.add("flame-powerup");
-            break;
-          case GameConstants.CELL_TYPES.SPEED_POWERUP:
-            cellElement.classList.add("speed-powerup");
-            break;
-          default:
-            cellElement.classList.add("empty");
-            break;
-        }
+        cell.classList.remove("flame");
       }, GameConstants.FLAME_DURATION);
     }
   }
-  destroyWall(x, y) {
-    const cell = document.querySelector(`[data-x="${x}"][data-y="${y}"]`);
-    if (
-      !cell ||
-      !this.currentMap[y] ||
-      this.currentMap[y][x] !== GameConstants.CELL_TYPES.DESTRUCTIBLE
-    ) {
-      return;
-    }
 
+  destroyWall(x, y) {
     const key = `${x},${y}`;
-    let powerupRevealed = null;
+    let revealed = null;
 
     if (this.hiddenPowerups.has(key)) {
-      const powerupType = this.hiddenPowerups.get(key);
+      revealed = this.hiddenPowerups.get(key);
       this.hiddenPowerups.delete(key);
-      this.currentMap[y][x] = powerupType;
-      powerupRevealed = powerupType;
-
-      cell.className = "cell";
-      switch (powerupType) {
-        case GameConstants.CELL_TYPES.BOMB_POWERUP:
-          cell.classList.add("bomb-powerup");
-          break;
-        case GameConstants.CELL_TYPES.FLAME_POWERUP:
-          cell.classList.add("flame-powerup");
-          break;
-        case GameConstants.CELL_TYPES.SPEED_POWERUP:
-          cell.classList.add("speed-powerup");
-          break;
-      }
+      this.currentMap[y][x] = revealed;
     } else {
       this.currentMap[y][x] = GameConstants.CELL_TYPES.EMPTY;
-      cell.className = "cell empty";
     }
 
-    // Notify other players about wall destruction
-    this.socketManager.sendWallDestroyed({ x, y }, powerupRevealed);
+    this.socketManager.sendWallDestroyed({ x, y }, revealed);
+    this.requestRender();
   }
 
-  handleWallDestroyed(position, powerupRevealed) {
-    const { x, y } = position;
-    const cell = document.querySelector(`[data-x="${x}"][data-y="${y}"]`);
-
-    if (powerupRevealed) {
-      this.currentMap[y][x] = powerupRevealed;
-      cell.className = "cell";
-      switch (powerupRevealed) {
-        case GameConstants.CELL_TYPES.BOMB_POWERUP:
-          cell.classList.add("bomb-powerup");
-          break;
-        case GameConstants.CELL_TYPES.FLAME_POWERUP:
-          cell.classList.add("flame-powerup");
-          break;
-        case GameConstants.CELL_TYPES.SPEED_POWERUP:
-          cell.classList.add("speed-powerup");
-          break;
-      }
+  handleWallDestroyed(pos, revealed) {
+    if (revealed) {
+      this.currentMap[pos.y][pos.x] = revealed;
     } else {
-      this.currentMap[y][x] = GameConstants.CELL_TYPES.EMPTY;
-      cell.className = "cell empty";
+      this.currentMap[pos.y][pos.x] = GameConstants.CELL_TYPES.EMPTY;
     }
+    this.requestRender();
   }
 
+  // ---------- SPECTATOR / GAME OVER ----------
   enableSpectatorMode() {
-    // Disable input but keep game loop running for spectating
     this.inputHandler.disable();
-
-    // Show spectator message
     this.showSpectatorMessage();
-
-    if (this.chatManager) {
-      this.chatManager.addSystemMessage(
-        "You are now spectating. Watch the remaining players!"
-      );
-    }
   }
 
   showSpectatorMessage() {
-    const gameContainer = document.getElementById("gameMapContainer");
-    if (!gameContainer) return;
-
-    // Remove existing spectator overlay if any
-    const existingOverlay = document.getElementById("spectatorOverlay");
-    if (existingOverlay) return; // Already showing
-
+    const wrap = document.getElementById("gameMapContainer");
+    if (!wrap || document.getElementById("spectatorOverlay")) return;
     const overlay = document.createElement("div");
     overlay.id = "spectatorOverlay";
     overlay.className = "spectator-overlay";
-
-    const message = document.createElement("div");
-    message.className = "spectator-message";
-    message.innerHTML =
-      "<h3>SPECTATOR MODE</h3><p>You have been eliminated. Watch the remaining players!</p>";
-
-    overlay.appendChild(message);
-    gameContainer.appendChild(overlay);
+    overlay.innerHTML = `<div class="spectator-message">
+      <h3>SPECTATOR MODE</h3><p>You have been eliminated. Watch the remaining players!</p>
+    </div>`;
+    wrap.appendChild(overlay);
   }
 
   handlePlayerEliminated(data) {
     if (this.chatManager) {
-      const suffix = this.getOrdinalSuffix(data.eliminationOrder);
-      this.chatManager.addSystemMessage(
-        `${data.nickname} eliminated! Finished ${data.eliminationOrder}${suffix} place.`
-      );
+      const s = this.getOrdinalSuffix(data.eliminationOrder);
+      this.chatManager.addSystemMessage(`${data.nickname} eliminated! Finished ${data.eliminationOrder}${s} place.`);
     }
   }
-
-  getOrdinalSuffix(num) {
-    const suffixes = ["th", "st", "nd", "rd"];
-    const value = num % 100;
-    return suffixes[(value - 20) % 10] || suffixes[value] || suffixes[0];
+  getOrdinalSuffix(n) {
+    const suf = ["th", "st", "nd", "rd"], v = n % 100;
+    return suf[(v - 20) % 10] || suf[v] || suf[0];
   }
 
   handleGameOver(leaderboard, winner) {
-    // Stop the game loop
-    if (this.animationFrameId) {
-      cancelAnimationFrame(this.animationFrameId);
-      this.animationFrameId = null;
-    }
-
-    // Create game over screen with leaderboard
-    this.showLeaderboard(leaderboard, winner);
-
-    // Disable input for all players
+    if (this.animationFrameId) cancelAnimationFrame(this.animationFrameId);
+    this.animationFrameId = null;
     this.inputHandler.disable();
-  }
 
-  handleGameReset(message) {
-    // Remove all overlays
-    const gameOverOverlay = document.getElementById("gameOverOverlay");
-    if (gameOverOverlay) gameOverOverlay.remove();
+    const wrap = document.getElementById("gameMapContainer");
+    if (!wrap) return;
+    const old = document.getElementById("gameOverOverlay");
+    if (old) old.remove();
 
-    const spectatorOverlay = document.getElementById("spectatorOverlay");
-    if (spectatorOverlay) spectatorOverlay.remove();
-
-    // Reset game state
-    this.activeBombs.clear();
-    this.passThroughBombs.clear();
-
-    // Reset players to initial state
-    this.players.forEach((player, playerId) => {
-      player.lives = 3;
-      player.powerups = { bombs: 0, flames: 0, speed: 0 };
-
-      // Remove dead player visual effects
-      player.removeDeadPlayerEffect();
-    });
-
-    // Re-enable input for all players
-    this.inputHandler.enable();
-
-    // Regenerate map
-    this.generateMap();
-
-    // Show reset message
-    if (this.chatManager) {
-      this.chatManager.addSystemMessage(message);
-    }
-
-    // Restart game loop
-    if (!this.animationFrameId) {
-      this.gameLoop();
-    }
-  }
-
-  showLeaderboard(leaderboard, winner) {
-    const gameContainer = document.getElementById("gameMapContainer");
-    if (!gameContainer) return;
-
-    // Remove existing overlays
-    const existingOverlay = document.getElementById("gameOverOverlay");
-    if (existingOverlay) existingOverlay.remove();
-
-    const spectatorOverlay = document.getElementById("spectatorOverlay");
-    if (spectatorOverlay) spectatorOverlay.remove();
-
-    // Create leaderboard overlay
     const overlay = document.createElement("div");
     overlay.id = "gameOverOverlay";
     overlay.className = "game-over-overlay";
 
     const content = document.createElement("div");
     content.className = "game-over-content";
+    content.innerHTML = `
+      <h1 class="game-over-title">Game Over</h1>
+      <h2 class="game-over-winner">${winner ? `${winner.nickname} Wins!` : "No Winner"}</h2>
+      <h3 class="leaderboard-title">Final Rankings</h3>
+      <div class="leaderboard-list">
+        ${leaderboard.map(p => `
+          <div class="leaderboard-row rank-${p.rank}">
+            <span class="rank">${this.getRankIcon(p.rank)} ${p.rank}${this.getOrdinalSuffix(p.rank)}</span>
+            <span class="nickname">${p.nickname}</span>
+            <span class="lives">${p.lives > 0 ? ` (${p.lives} lives)` : " (Eliminated)"}</span>
+          </div>`).join("")}
+      </div>
+      <p class="return-lobby-message">Press Cntrl + R to restart GAME</p>
+    `;
+    overlay.appendChild(content);
+    wrap.appendChild(overlay);
+  }
 
-    const title = document.createElement("h1");
-    title.className = "game-over-title";
-    title.textContent = "Game Over";
+  handleGameReset(message) {
+    const go = document.getElementById("gameOverOverlay");
+    if (go) go.remove();
+    const sp = document.getElementById("spectatorOverlay");
+    if (sp) sp.remove();
 
-    const winnerText = document.createElement("h2");
-    winnerText.className = "game-over-winner";
-    winnerText.textContent = winner ? `${winner.nickname} Wins!` : "No Winner";
+    this.activeBombs.clear();
+    this.passThroughBombs.clear();
 
-    const leaderboardTitle = document.createElement("h3");
-    leaderboardTitle.className = "leaderboard-title";
-    leaderboardTitle.textContent = "Final Rankings";
-
-    const leaderboardList = document.createElement("div");
-    leaderboardList.className = "leaderboard-list";
-
-    leaderboard.forEach((player) => {
-      const playerRow = document.createElement("div");
-      playerRow.className = `leaderboard-row rank-${player.rank}`;
-
-      const rankIcon = this.getRankIcon(player.rank);
-      const livesText =
-        player.lives > 0 ? ` (${player.lives} lives)` : " (Eliminated)";
-
-      playerRow.innerHTML = `
-        <span class="rank">${rankIcon} ${player.rank}${this.getOrdinalSuffix(
-        player.rank
-      )}</span>
-        <span class="nickname">${player.nickname}</span>
-        <span class="lives">${livesText}</span>
-      `;
-
-      leaderboardList.appendChild(playerRow);
+    this.players.forEach(p => {
+      p.lives = 3;
+      p.powerups = { bombs: 0, flames: 0, speed: 0 };
+      p.dead = false;
+      p.hasDamageFlash = false;
+      p.isInvincible = false;
     });
 
-    const returnMessage = document.createElement("p");
-    returnMessage.className = "return-lobby-message";
-    returnMessage.textContent = "Press Cntrl + R  to restart GAME";
+    this.inputHandler.enable();
+    this.generateMap();
 
-    content.appendChild(title);
-    content.appendChild(winnerText);
-    content.appendChild(leaderboardTitle);
-    content.appendChild(leaderboardList);
-    content.appendChild(returnMessage);
-    overlay.appendChild(content);
+    if (!this.animationFrameId) this.gameLoop();
 
-    gameContainer.appendChild(overlay);
+    if (this.chatManager) this.chatManager.addSystemMessage(message);
   }
 
   getRankIcon(rank) {
-    const icons = {
-      1: "🥇",
-      2: "🥈",
-      3: "🥉",
-      4: "4️⃣",
-    };
+    const icons = { 1:"🥇", 2:"🥈", 3:"🥉", 4:"4️⃣" };
     return icons[rank] || rank;
   }
+
   handlePlayerDeath(playerId) {
-    const player = this.players.get(playerId);
-    if (player && player.lives > 0) {
-      // Apply damage to the player
-      const tookDamage = player.takeDamage();
-
-      if (tookDamage) {
-        // Notify server about player death
-        if (playerId === this.localPlayerId) {
-          this.socketManager.sendPlayerDied();
-        }
-
-        // Update UI
-        this.ui.updateAllPlayersStatus(this.players);
+    const p = this.players.get(playerId);
+    if (p && p.lives > 0) {
+      const took = p.takeDamage();
+      if (took && playerId === this.localPlayerId) {
+        this.socketManager.sendPlayerDied();
       }
+      this.requestRender();
     }
   }
 }

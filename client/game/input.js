@@ -1,62 +1,82 @@
+import { VNode } from "../framework/vdom.js";
+
 export class InputHandler {
-    constructor() {
-        this.keysPressed = {};
-        this.disabled = false;
-        this.setupEventListeners();
-    }
+  constructor(eventRegistry) {
+    this.eventRegistry = eventRegistry;
+    this.keysPressed = {};
+    this.disabled = false;
+    this.unsubscribeFns = [];
+    this.setupEventListeners();
+  }
 
-    setupEventListeners() {
-        document.addEventListener('keydown', (e) => {
-            // Ignore keys if typing in chat or input is disabled
-            if (this.disabled || document.activeElement.matches("input, textarea")) return;
+  setupEventListeners() {
+    const unsubDown = this.eventRegistry.subscribe("keydown", (e) => {
+      if (this.disabled || document.activeElement.matches("input, textarea")) return;
+      const key = e.key.toLowerCase();
+      this.keysPressed[key] = true;
 
-            const key = e.key.toLowerCase();
-            this.keysPressed[key] = true;
+      if (
+        key === " " || key === "spacebar" || key === "enter" ||
+        ["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(key)
+      ) {
+        e.preventDefault();
+      }
+    });
 
-            if (
-                key === ' ' || key === 'spacebar' || key === 'enter' ||
-                ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)
-            ) {
-                e.preventDefault();
-            }
-        });
+    const unsubUp = this.eventRegistry.subscribe("keyup", (e) => {
+      if (this.disabled || document.activeElement.matches("input, textarea")) return;
+      this.keysPressed[e.key.toLowerCase()] = false;
+    });
 
-        document.addEventListener('keyup', (e) => {
-            if (this.disabled || document.activeElement.matches("input, textarea")) return;
-            this.keysPressed[e.key.toLowerCase()] = false;
-        });
-    }
+    this.unsubscribeFns.push(unsubDown, unsubUp);
+  }
 
-    getMovementInput() {
-        if (this.disabled) return { dx: 0, dy: 0 };
+  getMovementInput() {
+    if (this.disabled) return { dx: 0, dy: 0 };
+    let dx = 0, dy = 0;
+    if (this.keysPressed["w"] || this.keysPressed["arrowup"]) dy -= 1;
+    if (this.keysPressed["s"] || this.keysPressed["arrowdown"]) dy += 1;
+    if (this.keysPressed["a"] || this.keysPressed["arrowleft"]) dx -= 1;
+    if (this.keysPressed["d"] || this.keysPressed["arrowright"]) dx += 1;
+    return { dx, dy };
+  }
 
-        let dx = 0;
-        let dy = 0;
+  isBombKeyPressed() {
+    if (this.disabled) return false;
+    return this.keysPressed[" "] || this.keysPressed["spacebar"];
+  }
 
-        if (this.keysPressed['w'] || this.keysPressed['arrowup']) dy -= 1;
-        if (this.keysPressed['s'] || this.keysPressed['arrowdown']) dy += 1;
-        if (this.keysPressed['a'] || this.keysPressed['arrowleft']) dx -= 1;
-        if (this.keysPressed['d'] || this.keysPressed['arrowright']) dx += 1;
+  isResetKeyPressed() {
+    if (this.disabled) return false;
+    return this.keysPressed["enter"];
+  }
 
-        return { dx, dy };
-    }
+  enable() {
+    this.disabled = false;
+  }
 
-    isBombKeyPressed() {
-        if (this.disabled) return false;
-        return this.keysPressed[' '];
-    }
+  disable() {
+    this.disabled = true;
+    this.keysPressed = {};
+  }
 
-    isResetKeyPressed() {
-        if (this.disabled) return false;
-        return this.keysPressed['enter'];
-    }
+  destroy() {
+    this.unsubscribeFns.forEach(fn => fn && fn());
+    this.unsubscribeFns = [];
+    this.keysPressed = {};
+  }
+}
 
-    enable() {
-        this.disabled = false;
-    }
-
-    disable() {
-        this.disabled = true;
-        this.keysPressed = {};
-    }
+// VNode اللي يلتقط الكيبورد وي dispatch للـ eventRegistry
+export function createGameKeyboardInput(eventRegistry) {
+  return new VNode("input", {
+    type: "text",
+    tabindex: 0,
+    autofocus: true,
+    style: "position:fixed;top:-9999px;left:-9999px;opacity:0;",
+    onkeydown: (e) => eventRegistry.dispatch("keydown", e),
+    onkeyup:   (e) => eventRegistry.dispatch("keyup", e),
+    oninput:   (e) => { e.target.value = ""; },
+    onblur:    (e) => e.target.focus()
+  });
 }

@@ -9,15 +9,27 @@ export class VDOMManager {
   // Merge new state and re-render
   setState = (newState) => {
     this.state = { ...this.state, ...newState };
+    if (!this.renderFn) return; // ماكاينش renderFn
     const newVNode = this.renderFn(this.state, this.setState);
     updateElement(this.container, newVNode, this.oldVNode);
     this.oldVNode = newVNode;
   };
 
   // Initial mount
-  mount() {
-    this.oldVNode = this.renderFn(this.state, this.setState);
-    this.container.appendChild(this.oldVNode.render());
+  mount(vnode = null) {
+    if (vnode) {
+      // Case: عطينا VNode مباشرة
+      this.oldVNode = vnode;
+      this.container.appendChild(createDOMNode(vnode));
+    } else if (this.renderFn) {
+      // Case: عندنا renderFn
+      this.oldVNode = this.renderFn(this.state, this.setState);
+      this.container.appendChild(createDOMNode(this.oldVNode));
+    } else {
+      throw new Error(
+        "VDOMManager: mount() needs either a vnode or a renderFn"
+      );
+    }
   }
 }
 
@@ -68,8 +80,8 @@ function updateElement(parent, newVNode, oldVNode, index = 0) {
 // -------------------------
 function reconcileKeyedChildren(parentEl, newChildren, oldChildren) {
   const hasKeys =
-    newChildren.some(c => c?.attrs?.key != null) ||
-    oldChildren.some(c => c?.attrs?.key != null);
+    newChildren.some((c) => c?.attrs?.key != null) ||
+    oldChildren.some((c) => c?.attrs?.key != null);
 
   // Simple index-based diffing if no keys
   if (!hasKeys) {
@@ -115,7 +127,11 @@ function reconcileKeyedChildren(parentEl, newChildren, oldChildren) {
       const oldVNode = oldKeyToVNode.get(key);
 
       updateAttributes(el, newChild.attrs, oldVNode.attrs);
-      reconcileKeyedChildren(el, newChild.children || [], oldVNode.children || []);
+      reconcileKeyedChildren(
+        el,
+        newChild.children || [],
+        oldVNode.children || []
+      );
 
       newElements[idx] = el;
       usedKeys.add(key);
@@ -159,7 +175,7 @@ function changed(node1, node2) {
 }
 
 function updateAttributes(el, newAttrs = {}, oldAttrs = {}) {
-    if (!(el instanceof HTMLElement)) return; // <-- skip text nodes
+  if (!(el instanceof HTMLElement)) return; // <-- skip text nodes
   for (const key in oldAttrs) {
     if (!(key in newAttrs)) {
       el.removeAttribute(key);
@@ -190,7 +206,7 @@ function createDOMNode(vnode) {
   const el = document.createElement(vnode.tag);
   updateAttributes(el, vnode.attrs, {});
 
-  (vnode.children || []).forEach(child => {
+  (vnode.children || []).forEach((child) => {
     el.appendChild(createDOMNode(child));
   });
   return el;
