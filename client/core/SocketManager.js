@@ -63,8 +63,7 @@ export class SocketManager {
         break;
 
       case "gameStart":
-        console.log("Game starting with seed:", data.seed);
-        console.log("Players in room:", data.players);
+
         this.trigger("gameStart", { seed: data.seed, players: data.players });
         break;
 
@@ -74,7 +73,6 @@ export class SocketManager {
 
       case "playerIdAssigned":
         this.playerId = data.playerId;
-        console.log("Assigned player ID:", this.playerId);
         break;
 
       case "invalidNickname":
@@ -88,6 +86,8 @@ export class SocketManager {
 
       case "bombPlaced":
         this.trigger("bombPlaced", data);
+        console.log(data);
+
         break;
 
       case "bombExploded":

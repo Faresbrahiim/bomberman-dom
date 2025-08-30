@@ -24,7 +24,6 @@ export class InputHandler {
       const key = e.key.toLowerCase();
       this.keysPressed[key] = true;
       
-      console.log("مفتاح مضغوط:", key); // للتشخيص
       
       if (
         key === " " || key === "spacebar" || key === "enter" ||
@@ -46,7 +45,6 @@ export class InputHandler {
       
       const key = e.key.toLowerCase();
       this.keysPressed[key] = false;
-      console.log("مفتاح محرر:", key); // للتشخيص
     });
 
     this.unsubscribeFns.push(unsubDown, unsubUp);
@@ -63,7 +61,6 @@ export class InputHandler {
     if (this.keysPressed["d"] || this.keysPressed["arrowright"]) dx += 1;
     
     if (dx !== 0 || dy !== 0) {
-      console.log("movment", { dx, dy });
     }
     
     return { dx, dy };
@@ -81,13 +78,11 @@ export class InputHandler {
 
   enable() { 
     this.disabled = false;
-    console.log("InputHandler ");
   }
 
   disable() { 
     this.disabled = true; 
     this.keysPressed = {};
-    console.log("InputHandler ");
   }
 
   destroy() { 
@@ -105,7 +100,6 @@ export function createGameKeyboardInput(eventRegistry) {
     autofocus: true,
     style: "position:fixed;top:-9999px;left:-9999px;opacity:0;pointer-events:auto;width:1px;height:1px;",
     onkeydown: (e) => {
-      console.log("Keyboard event dispatched:", e.key);
       eventRegistry.dispatch("keydown", e);
     },
     onkeyup: (e) => {
@@ -115,7 +109,6 @@ export function createGameKeyboardInput(eventRegistry) {
       e.target.value = "";
     },
     onblur: (e) => {
-      console.log("Input lost focus, refocusing...");
       setTimeout(() => e.target.focus(), 10);
     },
     onfocus: () => {

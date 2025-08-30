@@ -111,7 +111,6 @@ export class BombermanGame {
   // ---------- LIFECYCLE ----------
   init() {
 
-    console.log("playuer:", Array.from(this.players.keys()));
     
     this.generateMap();
     this.vdom.mount(); // initial paint
@@ -254,16 +253,11 @@ export class BombermanGame {
   handleInput() {
     const me = this.players.get(this.localPlayerId);
     if (!me || me.dead || me.lives <= 0) {
-      console.log("this player istnicht exist", { 
-        exists: !!me, 
-        dead: me?.dead, 
-        lives: me?.lives 
-      });
+      
       return;
     }
 
     if (this.inputHandler.isBombKeyPressed()) {
-      console.log("  bomeer!");
       this.placeBomb();
       // clear key so it's not spammed
       this.inputHandler.keysPressed[" "] = false;
@@ -283,9 +277,9 @@ export class BombermanGame {
     let dy = mv.dy * me.getCurrentSpeed();
 
     // للتشخيص
-    if (dx !== 0 || dy !== 0) {
-      console.log("try move player", { dx, dy, speed: me.getCurrentSpeed() });
-    }
+    // if (dx !== 0 || dy !== 0) {
+    //   console.log("try move player", { dx, dy, speed: me.getCurrentSpeed() });
+    // }
 
     // corner assist (horizontal)
     if (dx !== 0 && this.isColliding(me.position.x + dx, me.position.y)) {
@@ -330,7 +324,6 @@ export class BombermanGame {
 
     // للتشخيص
     if (actualDx !== 0 || actualDy !== 0) {
-      console.log("player is movwe", { actualDx, actualDy, newPos: me.position });
     }
 
     // powerups + animation

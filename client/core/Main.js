@@ -99,7 +99,6 @@ export class Main {
 
     this.socketManager.on("roomJoined", (roomId) => {
       this.roomId = roomId;
-      console.log("Joined room:", roomId);
     });
 
     this.socketManager.on("countdownTick", (seconds) => {
@@ -108,7 +107,6 @@ export class Main {
     });
 
     this.socketManager.on("gameStart", (gameData) => {
-      console.log("Game starting!", gameData);
       this.renderGame(gameData);
     });
 
@@ -222,6 +220,5 @@ export class Main {
     this.game = new BombermanGame(this.socketManager, gameData);
     this.game.init();
 
-    console.log("Game initialized with data:", gameData);
   }
 }

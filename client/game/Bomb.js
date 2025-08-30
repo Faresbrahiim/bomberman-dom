@@ -13,6 +13,7 @@ export class Bomb {
     // Animation state
     this.frameIndex = 0;
     this.frameTick = 0;
+    console.log(this.x, this.y);
 
     // constants
     this.FRAMES_PER_ANIMATION = 3;
@@ -26,16 +27,20 @@ export class Bomb {
         width:${GameConstants.TILE_SIZE}px;
         height:${GameConstants.TILE_SIZE}px;
         background-image:url('media/bomb.png');
-        background-size:${GameConstants.TILE_SIZE * this.FRAMES_PER_ANIMATION}px ${GameConstants.TILE_SIZE}px;
+        background-size:${
+          GameConstants.TILE_SIZE * this.FRAMES_PER_ANIMATION
+        }px ${GameConstants.TILE_SIZE}px;
         background-position:-${this.frameIndex * GameConstants.TILE_SIZE}px 0px;
         background-repeat:no-repeat;
+        position: relative;
+        left:${this.x * GameConstants.TILE_SIZE}px;
+        top:${this.y * GameConstants.TILE_SIZE}px;
       `,
       "data-bomb-id": this.bombId,
       "data-player-id": this.playerId,
     });
   }
 
-  // هادي يناديها gameLoop
   updateAnimation() {
     if (this.exploded) return;
     this.frameTick++;
