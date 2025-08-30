@@ -2,14 +2,15 @@ import { VNode } from "../framework/vdom.js";
 import { VDOMManager } from "../framework/VDOMmanager.js";
 
 export class ChatManager {
-  constructor(container, socketManager) {
+  constructor(container, socketManager, eventRegistry) {
     this.container = container;
     this.socketManager = socketManager;
+    this.eventRegistry = eventRegistry;
 
     this.vdom = new VDOMManager(
       this.container,
       this.render.bind(this),
-      { messages: [] }
+      { messages: [], inputValue: "" }
     );
     this.vdom.mount();
 
@@ -24,7 +25,6 @@ export class ChatManager {
         this.socketManager.nickname &&
         message.includes(`${this.socketManager.nickname}:`);
 
-      // Use speech-bubble instead of chat-message for cute pixel art style! 🎮
       let className = "speech-bubble";
       if (isSystem) className += " system";
       if (isOwn) className += " own";
@@ -34,16 +34,29 @@ export class ChatManager {
 
     return new VNode("div", { class: "chat-container" }, [
       new VNode("div", { class: "chat-header" }, [
-        new VNode("h3", {}, ["💬 Chat"]), // Added cute emoji
+        new VNode("h3", {}, ["💬 Chat"]),
       ]),
-      new VNode("div", { id: "chatMessages", class: "chat-messages" }, messages),
+      new VNode("div", { 
+        id: "chatMessages", 
+        class: "chat-messages",
+        key: "chat-messages-container"
+      }, messages),
       new VNode("div", { class: "chat-input-container" }, [
         new VNode("input", {
           id: "chatInput",
           type: "text",
           class: "chat-input",
           placeholder: "Type your cute message... ✨",
-          maxlength: "200"
+          maxlength: "200",
+          value: state.inputValue,
+          oninput: (e) => setState({ inputValue: e.target.value }),
+          onkeydown: (e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              this.sendMessage(setState);
+              e.target.blur(); 
+            }
+          }
         }),
         new VNode("button", {
           id: "chatSend",
@@ -55,32 +68,24 @@ export class ChatManager {
   }
 
   setupEventListeners() {
-    const input = document.getElementById("chatInput");
-
-    // Focus chat when Enter is pressed (if not already typing)
-    document.addEventListener("keydown", (e) => {
+    this.eventRegistry.subscribe("keydown", (e) => {
+      const chatInput = this.container.querySelector("#chatInput");
+      
       if (e.key === "Enter") {
-        if (document.activeElement !== input) {
+        if (document.activeElement !== chatInput) {
           e.preventDefault();
-          input.focus();
-        } else {
-          e.preventDefault();
-          this.sendMessage(this.vdom.setState.bind(this.vdom));
-          input.blur(); // leave chat → back to game
+          if (chatInput) chatInput.focus();
         }
       }
     });
   }
 
-
   sendMessage(setState) {
-    const input = document.getElementById("chatInput");
-    if (!input) return;
-    const message = input.value.trim();
+    const currentValue = this.vdom.state.inputValue.trim();
 
-    if (message.length > 0) {
-      this.socketManager.sendChatMessage(message);
-      input.value = "";
+    if (currentValue.length > 0) {
+      this.socketManager.sendChatMessage(currentValue);
+      setState({ inputValue: "" }); 
     }
   }
 
@@ -135,7 +140,7 @@ export class ChatManager {
   }
 
   clear() {
-    this.vdom.setState({ messages: [] });
+    this.vdom.setState({ messages: [], inputValue: "" });
   }
 
   scrollToBottom() {
