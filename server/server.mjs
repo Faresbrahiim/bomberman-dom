@@ -503,7 +503,7 @@ wss.on("connection", (ws) => {
 
           const playerData = room.clients.get(ws);
           if (playerData) {
-            playerData.lives = Math.max(0, playerData.lives - 1);
+            playerData.lives = Math.max(0, playerData.lives-1);
 
             // If player is eliminated, mark them as spectator and record elimination order
             if (playerData.lives === 0 && !playerData.eliminationOrder) {

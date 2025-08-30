@@ -5,7 +5,7 @@ export class SocketManager {
     this.nickname = nickname;
     this.playerId = null; // Will be assigned by server
     this.eventHandlers = {};
-    this.ws = new WebSocket("ws://localhost:3000");
+    this.ws = new WebSocket("/");
 
     // When the socket opens, send join message to backend
     this.ws.onopen = () => {

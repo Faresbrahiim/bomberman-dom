@@ -137,15 +137,17 @@ export class Player {
   takeDamage() {
     if (this.isInvincible || this.lives <= 0) return false;
 
-    this.lives--;
 
     if (this.element) {
       this.element.classList.add("damage-flash");
     }
 
     this.isInvincible = true;
-
+    console.log(this.lives);
+    
     if (this.lives > 0) {
+      console.log(GameConstants.INVINCIBILITY_DURATION);
+      
       setTimeout(() => {
         this.isInvincible = false;
         if (this.element) {

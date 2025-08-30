@@ -46,89 +46,6 @@ export class BombermanGame {
     });
   }
 
-  setupSocketListeners() {
-    this.socketManager.on("playerMoved", (data) => {
-      const player = this.players.get(data.playerId);
-      if (player && !player.isLocal) {
-        player.position = data.position;
-        player.gridPosition = data.gridPosition;
-        player.updateElementPosition();
-
-        // Apply animation with movement data
-        if (data.movement) {
-          player.updateAnimation(data.movement.dx, data.movement.dy);
-        } else {
-          // Stop animation if no movement data
-          player.updateAnimation(0, 0);
-        }
-      }
-    });
-
-    this.socketManager.on("bombPlaced", (data) => {
-      if (data.playerId !== this.localPlayerId) {
-        this.placeBombAt(data.position, data.bombId, data.playerId);
-      }
-    });
-
-    this.socketManager.on("bombExploded", (data) => {
-      this.handleBombExplosion(data.bombId, data.explosionCells);
-    });
-
-    this.socketManager.on("wallDestroyed", (data) => {
-      this.handleWallDestroyed(data.position, data.powerupRevealed);
-    });
-
-    this.socketManager.on("powerupCollected", (data) => {
-      if (data.playerId !== this.localPlayerId) {
-        this.handlePowerupCollected(
-          data.playerId,
-          data.position,
-          data.powerupType
-        );
-      }
-    });
-
-    this.socketManager.on("playerDied", (data) => {
-      const player = this.players.get(data.playerId);
-      if (player) {
-        // Update player lives from server data
-        player.lives = data.lives;
-
-        // Apply dead player visual effect if lives reach 0
-        if (data.lives === 0) {
-          player.applyDeadPlayerEffect();
-        }
-
-        // Handle local player elimination
-        if (data.playerId === this.localPlayerId && data.lives === 0) {
-          this.enableSpectatorMode();
-        }
-
-        // Update UI for all players
-        this.ui.updateAllPlayersStatus(this.players);
-      }
-    });
-    this.socketManager.on("playerDisconnected", (data) => {
-      const player = this.players.get(data.playerId);
-      if (player && player.element) {
-        player.element.remove();
-      }
-      this.players.delete(data.playerId);
-    });
-
-    this.socketManager.on("gameOver", (data) => {
-      this.handleGameOver(data.leaderboard, data.winner);
-    });
-
-    this.socketManager.on("gameReset", (message) => {
-      this.handleGameReset(message);
-    });
-
-    this.socketManager.on("playerEliminated", (data) => {
-      this.handlePlayerEliminated(data);
-    });
-  }
-
   init() {
     this.generateMap();
     this.createPlayerElements();
@@ -145,8 +62,9 @@ export class BombermanGame {
     this.players.forEach((player, playerId) => {
       const playerElement = document.createElement("div");
       playerElement.id = `player-${playerId}`;
-      playerElement.className = `player ${player.isLocal ? "local-player" : "remote-player"
-        }`;
+      playerElement.className = `player ${
+        player.isLocal ? "local-player" : "remote-player"
+      }`;
       playerElement.style.position = "absolute";
       playerElement.style.width = GameConstants.TILE_SIZE + "px";
       playerElement.style.height = GameConstants.TILE_SIZE + "px";
@@ -241,7 +159,7 @@ export class BombermanGame {
     ) {
       const gridY = Math.floor(
         (localPlayer.position.y + GameConstants.TILE_SIZE / 2) /
-        GameConstants.TILE_SIZE
+          GameConstants.TILE_SIZE
       );
       const laneCenterY = gridY * GameConstants.TILE_SIZE;
 
@@ -262,7 +180,7 @@ export class BombermanGame {
     ) {
       const gridX = Math.floor(
         (localPlayer.position.x + GameConstants.TILE_SIZE / 2) /
-        GameConstants.TILE_SIZE
+          GameConstants.TILE_SIZE
       );
       const laneCenterX = gridX * GameConstants.TILE_SIZE;
 
@@ -317,7 +235,6 @@ export class BombermanGame {
       );
     }
   }
-
 
   isSolid(cellType, gridX, gridY) {
     if (
@@ -579,7 +496,7 @@ export class BombermanGame {
       const playerGridPos = player.getGridPosition();
       if (playerGridPos.x === x && playerGridPos.y === y) {
         if (player.isLocal) {
-          this.socketManager.sendPlayerDied();
+          this.handlePlayerDeath(player.playerId)
         }
       }
     });
@@ -883,6 +800,8 @@ export class BombermanGame {
   }
   handlePlayerDeath(playerId) {
     const player = this.players.get(playerId);
+    console.log(player.lives);
+
     if (player && player.lives > 0) {
       // Apply damage to the player
       const tookDamage = player.takeDamage();
@@ -897,5 +816,89 @@ export class BombermanGame {
         this.ui.updateAllPlayersStatus(this.players);
       }
     }
+  }
+
+  setupSocketListeners() {
+    this.socketManager.on("playerMoved", (data) => {
+      const player = this.players.get(data.playerId);
+      if (player && !player.isLocal) {
+        player.position = data.position;
+        player.gridPosition = data.gridPosition;
+        player.updateElementPosition();
+
+        // Apply animation with movement data
+        if (data.movement) {
+          player.updateAnimation(data.movement.dx, data.movement.dy);
+        } else {
+          // Stop animation if no movement data
+          player.updateAnimation(0, 0);
+        }
+      }
+    });
+
+    this.socketManager.on("bombPlaced", (data) => {
+      if (data.playerId !== this.localPlayerId) {
+        this.placeBombAt(data.position, data.bombId, data.playerId);
+      }
+    });
+
+    this.socketManager.on("bombExploded", (data) => {
+      this.handleBombExplosion(data.bombId, data.explosionCells);
+    });
+
+    this.socketManager.on("wallDestroyed", (data) => {
+      this.handleWallDestroyed(data.position, data.powerupRevealed);
+    });
+
+    this.socketManager.on("powerupCollected", (data) => {
+      if (data.playerId !== this.localPlayerId) {
+        this.handlePowerupCollected(
+          data.playerId,
+          data.position,
+          data.powerupType
+        );
+      }
+    });
+
+    this.socketManager.on("playerDied", (data) => {
+      const player = this.players.get(data.playerId);
+      if (player) {
+        // Update player lives from server data
+        this.handlePlayerDeath(player.playerId);
+        player.lives = data.lives;
+
+        // Apply dead player visual effect if lives reach 0
+        if (data.lives === 0) {
+          player.applyDeadPlayerEffect();
+        }
+
+        // Handle local player elimination
+        if (data.playerId === this.localPlayerId && data.lives === 0) {
+          this.enableSpectatorMode();
+        }
+
+        // Update UI for all players
+        this.ui.updateAllPlayersStatus(this.players);
+      }
+    });
+    this.socketManager.on("playerDisconnected", (data) => {
+      const player = this.players.get(data.playerId);
+      if (player && player.element) {
+        player.element.remove();
+      }
+      this.players.delete(data.playerId);
+    });
+
+    this.socketManager.on("gameOver", (data) => {
+      this.handleGameOver(data.leaderboard, data.winner);
+    });
+
+    this.socketManager.on("gameReset", (message) => {
+      this.handleGameReset(message);
+    });
+
+    this.socketManager.on("playerEliminated", (data) => {
+      this.handlePlayerEliminated(data);
+    });
   }
 }
