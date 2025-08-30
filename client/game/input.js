@@ -62,7 +62,6 @@ export class InputHandler {
     if (this.keysPressed["a"] || this.keysPressed["arrowleft"]) dx -= 1;
     if (this.keysPressed["d"] || this.keysPressed["arrowright"]) dx += 1;
     
-    // للتشخيص
     if (dx !== 0 || dy !== 0) {
       console.log("movment", { dx, dy });
     }

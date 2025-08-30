@@ -19,7 +19,6 @@ export class Bomb {
     this.ANIMATION_SPEED = 20; // higher = slower
   }
 
-  // يرجع VNode بدل DOM element مباشر
   render() {
     return new VNode("div", {
       class: "bomb",

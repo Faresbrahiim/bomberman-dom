@@ -110,20 +110,17 @@ export class BombermanGame {
 
   // ---------- LIFECYCLE ----------
   init() {
-    console.log("تهيئة اللعبة...");
-    console.log("اللاعب المحلي:", this.localPlayerId);
-    console.log("اللاعبون:", Array.from(this.players.keys()));
+
+    console.log("playuer:", Array.from(this.players.keys()));
     
     this.generateMap();
     this.vdom.mount(); // initial paint
     
-    // تأكد من تفعيل الإدخال
     this.inputHandler.enable();
     
-    // التركيز على لوحة المفاتيح
     setTimeout(() => {
       this.focusKeyboard();
-      console.log("التركيز على لوحة المفاتيح...");
+      console.log("focus..");
     }, 200);
     
     this.gameLoop();
@@ -257,7 +254,7 @@ export class BombermanGame {
   handleInput() {
     const me = this.players.get(this.localPlayerId);
     if (!me || me.dead || me.lives <= 0) {
-      console.log("اللاعب غير متاح للحركة:", { 
+      console.log("this player istnicht exist", { 
         exists: !!me, 
         dead: me?.dead, 
         lives: me?.lives 
@@ -266,7 +263,7 @@ export class BombermanGame {
     }
 
     if (this.inputHandler.isBombKeyPressed()) {
-      console.log("مفتاح القنبلة مضغوط!");
+      console.log("  bomeer!");
       this.placeBomb();
       // clear key so it's not spammed
       this.inputHandler.keysPressed[" "] = false;
@@ -287,7 +284,7 @@ export class BombermanGame {
 
     // للتشخيص
     if (dx !== 0 || dy !== 0) {
-      console.log("محاولة تحريك اللاعب:", { dx, dy, speed: me.getCurrentSpeed() });
+      console.log("try move player", { dx, dy, speed: me.getCurrentSpeed() });
     }
 
     // corner assist (horizontal)
@@ -333,7 +330,7 @@ export class BombermanGame {
 
     // للتشخيص
     if (actualDx !== 0 || actualDy !== 0) {
-      console.log("اللاعب تحرك فعلياً:", { actualDx, actualDy, newPos: me.position });
+      console.log("player is movwe", { actualDx, actualDy, newPos: me.position });
     }
 
     // powerups + animation
