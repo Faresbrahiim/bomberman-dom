@@ -24,18 +24,19 @@ export class Bomb {
     return new VNode("div", {
       class: "bomb",
       style: `
-        width:${GameConstants.TILE_SIZE}px;
-        height:${GameConstants.TILE_SIZE}px;
-        background-image:url('media/bomb.png');
-        background-size:${
-          GameConstants.TILE_SIZE * this.FRAMES_PER_ANIMATION
-        }px ${GameConstants.TILE_SIZE}px;
-        background-position:-${this.frameIndex * GameConstants.TILE_SIZE}px 0px;
-        background-repeat:no-repeat;
-        position: relative;
-        left:${this.x * GameConstants.TILE_SIZE}px;
-        top:${this.y * GameConstants.TILE_SIZE}px;
-      `,
+      width:${GameConstants.TILE_SIZE}px;
+      height:${GameConstants.TILE_SIZE}px;
+      background-image:url('media/bomb.png');
+      background-size:${
+        GameConstants.TILE_SIZE * this.FRAMES_PER_ANIMATION
+      }px ${GameConstants.TILE_SIZE}px;
+      background-position:-${this.frameIndex * GameConstants.TILE_SIZE}px 0px;
+      background-repeat:no-repeat;
+      position: absolute;
+      transform: translate(${this.x * GameConstants.TILE_SIZE}px, ${
+        this.y * GameConstants.TILE_SIZE
+      }px);
+    `,
       "data-bomb-id": this.bombId,
       "data-player-id": this.playerId,
     });
