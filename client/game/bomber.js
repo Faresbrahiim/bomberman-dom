@@ -30,24 +30,12 @@ export class BombermanGame {
     this.mapHeight = 11;
     this.animationFrameId = null;
 
-    // Element references stored in state
-    this.elementRefs = {
-      gameMapContainer: null,
-      gameKeyboardInput: null,
-      playerStatusArea: null,
-      spectatorOverlay: null,
-      gameOverOverlay: null
-    };
-
     // players from lobby/gameData
     this.initializePlayers(gameData.players);
 
-    // Find container using querySelector instead of getElementById
-    const container = document.querySelector("#gameMapContainer");
+    // Fix: Clean container setup to prevent double rendering
+    const container = document.getElementById("gameMapContainer");
     if (!container) throw new Error("#gameMapContainer not found");
-    
-    // Store reference
-    this.elementRefs.gameMapContainer = container;
     
     // Clear everything first
     container.innerHTML = "";
@@ -59,14 +47,8 @@ export class BombermanGame {
     this.setupSocketListeners();
   }
 
-  // Helper method to find elements using our framework's querySelector
-  findElement(selector) {
-    return document.querySelector(selector);
-  }
-
   focusKeyboard() {
-    // Use querySelector instead of getElementById
-    const kb = this.findElement("#game-keyboard-input");
+    const kb = document.getElementById("game-keyboard-input");
     if (kb && kb !== document.activeElement) {
       kb.focus();
     }
@@ -128,6 +110,8 @@ export class BombermanGame {
 
   // ---------- LIFECYCLE ----------
   init() {
+
+    
     this.generateMap();
     this.vdom.mount(); // initial paint
     
@@ -269,6 +253,7 @@ export class BombermanGame {
   handleInput() {
     const me = this.players.get(this.localPlayerId);
     if (!me || me.dead || me.lives <= 0) {
+      
       return;
     }
 
@@ -290,6 +275,11 @@ export class BombermanGame {
     const mv = this.inputHandler.getMovementInput();
     let dx = mv.dx * me.getCurrentSpeed();
     let dy = mv.dy * me.getCurrentSpeed();
+
+    // للتشخيص
+    // if (dx !== 0 || dy !== 0) {
+    //   console.log("try move player", { dx, dy, speed: me.getCurrentSpeed() });
+    // }
 
     // corner assist (horizontal)
     if (dx !== 0 && this.isColliding(me.position.x + dx, me.position.y)) {
@@ -330,6 +320,10 @@ export class BombermanGame {
     if (!this.isColliding(me.position.x, ny)) {
       me.position.y = ny;
       actualDy = dy;
+    }
+
+    // للتشخيص
+    if (actualDx !== 0 || actualDy !== 0) {
     }
 
     // powerups + animation
@@ -554,9 +548,9 @@ export class BombermanGame {
         }, 100);
     }
 
-    // quick visual flame effect using querySelector
+    // quick visual flame effect
     setTimeout(() => {
-      const cell = this.findElement(`[data-x="${x}"][data-y="${y}"]`);
+      const cell = document.querySelector(`[data-x="${x}"][data-y="${y}"]`);
       if (cell) {
         cell.classList.add("flame");
         setTimeout(() => {
@@ -598,25 +592,15 @@ export class BombermanGame {
   }
 
   showSpectatorMessage() {
-    // Use stored reference instead of getElementById
-    const wrap = this.elementRefs.gameMapContainer;
-    if (!wrap || this.findElement("#spectatorOverlay")) return;
-    
-    // Create spectator overlay using VNode and render it
-    const spectatorVNode = new VNode("div", {
-      id: "spectatorOverlay",
-      class: "spectator-overlay"
-    }, [
-      new VNode("div", { class: "spectator-message" }, [
-        new VNode("h3", {}, ["SPECTATOR MODE"]),
-        new VNode("p", {}, ["You have been eliminated. Watch the remaining players!"])
-      ])
-    ]);
-    
-    // Render and append to container
-    const spectatorElement = spectatorVNode.render();
-    this.elementRefs.spectatorOverlay = spectatorElement;
-    wrap.appendChild(spectatorElement);
+    const wrap = document.getElementById("gameMapContainer");
+    if (!wrap || document.getElementById("spectatorOverlay")) return;
+    const overlay = document.createElement("div");
+    overlay.id = "spectatorOverlay";
+    overlay.className = "spectator-overlay";
+    overlay.innerHTML = `<div class="spectator-message">
+      <h3>SPECTATOR MODE</h3><p>You have been eliminated. Watch the remaining players!</p>
+    </div>`;
+    wrap.appendChild(overlay);
   }
 
   handlePlayerEliminated(data) {
@@ -641,60 +625,50 @@ export class BombermanGame {
     }
     this.inputHandler.disable();
 
-    // Use stored reference instead of getElementById
-    const wrap = this.elementRefs.gameMapContainer;
+    const wrap = document.getElementById("gameMapContainer");
     if (!wrap) return;
-    
-    // Remove existing overlay using stored reference
-    if (this.elementRefs.gameOverOverlay) {
-      this.elementRefs.gameOverOverlay.remove();
-      this.elementRefs.gameOverOverlay = null;
-    }
+    const old = document.getElementById("gameOverOverlay");
+    if (old) old.remove();
 
-    // Create game over overlay using VNode
-    const gameOverVNode = new VNode("div", {
-      id: "gameOverOverlay",
-      class: "game-over-overlay"
-    }, [
-      new VNode("div", { class: "game-over-content" }, [
-        new VNode("h1", { class: "game-over-title" }, ["Game Over"]),
-        new VNode("h2", { class: "game-over-winner" }, [
-          winner ? `${winner.nickname} Wins!` : "No Winner"
-        ]),
-        new VNode("h3", { class: "leaderboard-title" }, ["Final Rankings"]),
-        new VNode("div", { class: "leaderboard-list" }, 
-          leaderboard.map(p => 
-            new VNode("div", { class: `leaderboard-row rank-${p.rank}` }, [
-              new VNode("span", { class: "rank" }, [
-                `${this.getRankIcon(p.rank)} ${p.rank}${this.getOrdinalSuffix(p.rank)}`
-              ]),
-              new VNode("span", { class: "nickname" }, [p.nickname]),
-              new VNode("span", { class: "lives" }, [
-                p.lives > 0 ? ` (${p.lives} lives)` : " (Eliminated)"
-              ])
-            ])
+    const overlay = document.createElement("div");
+    overlay.id = "gameOverOverlay";
+    overlay.className = "game-over-overlay";
+
+    const content = document.createElement("div");
+    content.className = "game-over-content";
+    content.innerHTML = `
+      <h1 class="game-over-title">Game Over</h1>
+      <h2 class="game-over-winner">${
+        winner ? `${winner.nickname} Wins!` : "No Winner"
+      }</h2>
+      <h3 class="leaderboard-title">Final Rankings</h3>
+      <div class="leaderboard-list">
+        ${leaderboard
+          .map(
+            (p) => `
+          <div class="leaderboard-row rank-${p.rank}">
+            <span class="rank">${this.getRankIcon(p.rank)} ${
+              p.rank
+            }${this.getOrdinalSuffix(p.rank)}</span>
+            <span class="nickname">${p.nickname}</span>
+            <span class="lives">${
+              p.lives > 0 ? ` (${p.lives} lives)` : " (Eliminated)"
+            }</span>
+          </div>`
           )
-        ),
-        new VNode("p", { class: "return-lobby-message" }, ["Press Ctrl + R to restart GAME"])
-      ])
-    ]);
-
-    // Render and append
-    const gameOverElement = gameOverVNode.render();
-    this.elementRefs.gameOverOverlay = gameOverElement;
-    wrap.appendChild(gameOverElement);
+          .join("")}
+      </div>
+      <p class="return-lobby-message">Press Ctrl + R to restart GAME</p>
+    `;
+    overlay.appendChild(content);
+    wrap.appendChild(overlay);
   }
 
   handleGameReset(message) {
-    // Remove overlays using stored references
-    if (this.elementRefs.gameOverOverlay) {
-      this.elementRefs.gameOverOverlay.remove();
-      this.elementRefs.gameOverOverlay = null;
-    }
-    if (this.elementRefs.spectatorOverlay) {
-      this.elementRefs.spectatorOverlay.remove();
-      this.elementRefs.spectatorOverlay = null;
-    }
+    const go = document.getElementById("gameOverOverlay");
+    if (go) go.remove();
+    const sp = document.getElementById("spectatorOverlay");
+    if (sp) sp.remove();
 
     this.activeBombs.clear();
     this.passThroughBombs.clear();

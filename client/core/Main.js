@@ -14,22 +14,18 @@ export class Main {
     this.nickname = null;
     this.roomId = null;
     this.countdownSeconds = null;
-    
+    this.gameData = null;
     this.eventRegistry = new EventRegistry();
     this.setupGlobalEventHandlers();
-    
-    this.vdom = new VDOMManager(
-      this.container,
-      this.render.bind(this),
-      { 
-        currentView: "nickname",
-        nicknameValue: "",
-        errorMessage: "",
-        playerCount: 1,
-        countdownSeconds: null
-      }
-    );
-    
+
+    this.vdom = new VDOMManager(this.container, this.render.bind(this), {
+      currentView: "nickname",
+      nicknameValue: "",
+      errorMessage: "",
+      playerCount: 1,
+      countdownSeconds: null,
+    });
+
     this.init();
   }
 
@@ -37,7 +33,7 @@ export class Main {
     document.addEventListener("keydown", (e) => {
       this.eventRegistry.dispatch("keydown", e);
     });
-    
+
     document.addEventListener("keyup", (e) => {
       this.eventRegistry.dispatch("keyup", e);
     });
@@ -77,29 +73,35 @@ export class Main {
             this.handleJoin(setState);
           }
         },
-        autofocus: true
+        autofocus: true,
       }),
-      new VNode("button", {
-        class: "join-btn",
-        onclick: () => this.handleJoin(setState)
-      }, ["Join Lobby"]),
-      new VNode("p", { class: "error-msg" }, [state.errorMessage])
+      new VNode(
+        "button",
+        {
+          class: "join-btn",
+          onclick: () => this.handleJoin(setState),
+        },
+        ["Join Lobby"]
+      ),
+      new VNode("p", { class: "error-msg" }, [state.errorMessage]),
     ]);
   }
 
   renderLobby(state, setState) {
-    const countdownContent = state.countdownSeconds !== null
-      ? state.countdownSeconds > 0
-        ? [`Game starts in: ${state.countdownSeconds}s`]
-        : ["Game Starting!"]
-      : [];
+    const countdownContent =
+      state.countdownSeconds !== null
+        ? state.countdownSeconds > 0
+          ? [`Game starts in: ${state.countdownSeconds}s`]
+          : ["Game Starting!"]
+        : [];
 
     let playerCountText = `Players in lobby: ${state.playerCount}`;
     if (state.playerCount === 1) {
       playerCountText += " (Need at least 2 players to start)";
     } else if (state.playerCount >= 2 && state.playerCount < 4) {
       if (state.countdownSeconds === null) {
-        playerCountText += " (Game will start in 20 seconds, or when 4 players join)";
+        playerCountText +=
+          " (Game will start in 20 seconds, or when 4 players join)";
       }
     } else if (state.playerCount === 4) {
       playerCountText += " (Game starting in 10 seconds!)";
@@ -111,34 +113,30 @@ export class Main {
       new VNode("p", { class: "player-count" }, [playerCountText]),
       new VNode("div", { class: "countdown" }, [
         state.countdownSeconds !== null
-          ? new VNode("h3", { 
-              class: state.countdownSeconds > 0 ? "countdown-timer" : "countdown-start" 
-            }, countdownContent)
-          : null
+          ? new VNode(
+              "h3",
+              {
+                class:
+                  state.countdownSeconds > 0
+                    ? "countdown-timer"
+                    : "countdown-start",
+              },
+              countdownContent
+            )
+          : null,
       ]),
       new VNode("div", { class: "rules-box" }, [
         new VNode("h3", {}, ["Game Rules:"]),
         new VNode("ul", {}, [
           new VNode("li", {}, ["Move: WASD or Arrow Keys"]),
           new VNode("li", {}, ["Place Bomb: Spacebar"]),
-          new VNode("li", {}, ["Collect powerups to increase bombs, flames, and speed"]),
-          new VNode("li", {}, ["Last player standing wins!"])
-        ])
-      ]),
-      new VNode("div", { id: "chatContainer", class: "chat-container" })
-    ]);
-  }
-
-  renderGameLayout(state, setState) {
-    return new VNode("div", { class: "game-layout" }, [
-      new VNode("div", { class: "game-area" }, [
-        new VNode("div", { class: "banner" }, [
-          new VNode("img", { src: "../media/baner.png", alt: "Bomberman Banner" })
+          new VNode("li", {}, [
+            "Collect powerups to increase bombs, flames, and speed",
+          ]),
+          new VNode("li", {}, ["Last player standing wins!"]),
         ]),
-        new VNode("div", { id: "gameMapContainer", class: "map-container" }),
-        new VNode("div", { id: "playerStatusArea", class: "status-container" })
       ]),
-      new VNode("div", { id: "chatContainer", class: "chat-container" })
+      new VNode("div", { id: "chatContainer", class: "chat-container" }),
     ]);
   }
 
@@ -156,7 +154,10 @@ export class Main {
     }
 
     if (!/^[a-zA-Z0-9_]+$/.test(nickname)) {
-      setState({ errorMessage: "Nickname can only contain letters, numbers, and underscores." });
+      setState({
+        errorMessage:
+          "Nickname can only contain letters, numbers, and underscores.",
+      });
       return;
     }
 
@@ -196,9 +197,7 @@ export class Main {
 
     this.socketManager.on("gameStart", (gameData) => {
       setState({ currentView: "game" });
-      setTimeout(() => {
-        this.initializeGame(gameData);
-      }, 100);
+      this.gameData = gameData;
     });
 
     this.socketManager.on("invalidNickname", (reason) => {
@@ -206,7 +205,9 @@ export class Main {
     });
 
     this.socketManager.ws.onerror = () => {
-      setState({ errorMessage: "Failed to connect to server. Please try again." });
+      setState({
+        errorMessage: "Failed to connect to server. Please try again.",
+      });
     };
   }
 
@@ -223,7 +224,7 @@ export class Main {
     }, 100);
   }
 
-  initializeGame(gameData) {
+  initializeGame() {
     const chatContainer = document.getElementById("chatContainer");
     if (chatContainer) {
       this.chatManager = new ChatManager(
@@ -233,8 +234,31 @@ export class Main {
       );
     }
 
-    this.game = new BombermanGame(this.socketManager, gameData, this.eventRegistry);
+    this.game = new BombermanGame(
+      this.socketManager,
+      this.gameData,
+      this.eventRegistry
+    );
     this.game.chatManager = this.chatManager;
     this.game.init();
+  }
+  renderGameLayout(state, setState) {
+    this.initializeGame();
+    return new VNode("div", { class: "game-layout" }, [
+      new VNode("div", { class: "game-area" }, [
+        new VNode("div", { class: "banner" }, [
+          new VNode("img", {
+            src: "../media/baner.png",
+            alt: "Bomberman Banner",
+          }),
+        ]),
+        new VNode(
+          "div",
+          { id: "gameMapContainer", class: "map-container" },
+          this.gameData ? [this.game.render()] : []
+        ),
+      ]),
+      new VNode("div", { id: "chatContainer", class: "chat-container" }),
+    ]);
   }
 }

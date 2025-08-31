@@ -105,22 +105,22 @@ export class Player {
   // -------------------------
   render() {
     const classes = ["player", `avatar-${this.avatarColor}`];
-    if (this.isLocal) classes.push("local-player");
-    if (this.dead) classes.push("dead-player");
-    if (this.hasDamageFlash) classes.push("damage-flash");
+    if (data.his.isLocal) classes.push("local-player");
+    if (data.dead) classes.push("dead-player");
+    if (data.hasDamageFlash) classes.push("damage-flash");
 
     return new VNode("div", {
-      id: `player-${this.playerId}`,
+      id: `player-${data.playerId}`,
       class: classes.join(" "),
       style: `
         position:absolute;
         width:${GameConstants.TILE_SIZE}px;
         height:${GameConstants.TILE_SIZE}px;
-        left:${this.position.x}px;
-        top:${this.position.y}px;
-        background-image:url('${this.sprites[this.direction]}');
+        left:${data.position.x}px;
+        top:${data.position.y}px;
+        background-image:url('${data.sprites[data.direction]}');
         background-size:auto ${GameConstants.TILE_SIZE}px;
-        background-position:-${this.frameIndex * GameConstants.TILE_SIZE}px 0px;
+        background-position:-${data.frameIndex * GameConstants.TILE_SIZE}px 0px;
       `
     });
   }
