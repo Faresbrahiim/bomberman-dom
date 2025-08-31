@@ -1,30 +1,32 @@
 export class InputHandler {
-  constructor(eventRegistry) {
+  constructor(eventRegistry, vdomManager = null) {
     this.eventRegistry = eventRegistry;
+    this.vdomManager = vdomManager;
     this.keysPressed = {};
     this.disabled = false;
     this.unsubscribeFns = [];
+    this.gameInputRefKey = "game-keyboard-input"; // Reference key for game input
     this.setupEventListeners();
+  }
+
+  setVDOMManager(vdomManager) {
+    this.vdomManager = vdomManager;
   }
 
   setupEventListeners() {
     const unsubDown = this.eventRegistry.subscribe("keydown", (e) => {
       if (this.disabled) return;
       
-      if (document.activeElement && 
-          document.activeElement !== document.getElementById("game-keyboard-input") &&
-          document.activeElement.matches("input, textarea")) {
+      // Check if focus is on a game input element or other input/textarea
+      if (document.activeElement && this.shouldIgnoreKeyEvent(document.activeElement)) {
         return;
       }
       
       const key = e.key.toLowerCase();
       this.keysPressed[key] = true;
       
-      
-      if (
-        key === " " || key === "spacebar" || key === "enter" ||
-        ["w","a","s","d","arrowup","arrowdown","arrowleft","arrowright"].includes(key)
-      ) {
+      // Prevent default for game control keys
+      if (this.isGameControlKey(key)) {
         e.preventDefault();
         e.stopPropagation();
       }
@@ -33,9 +35,7 @@ export class InputHandler {
     const unsubUp = this.eventRegistry.subscribe("keyup", (e) => {
       if (this.disabled) return;
       
-      if (document.activeElement && 
-          document.activeElement !== document.getElementById("game-keyboard-input") &&
-          document.activeElement.matches("input, textarea")) {
+      if (document.activeElement && this.shouldIgnoreKeyEvent(document.activeElement)) {
         return;
       }
       
@@ -44,6 +44,31 @@ export class InputHandler {
     });
 
     this.unsubscribeFns.push(unsubDown, unsubUp);
+  }
+
+  shouldIgnoreKeyEvent(activeElement) {
+    // If we have a VDOM manager, check against registered refs
+    if (this.vdomManager) {
+      const gameInputElement = this.vdomManager.getRef(this.gameInputRefKey);
+      if (activeElement !== gameInputElement && activeElement.matches("input, textarea")) {
+        return true;
+      }
+    } else {
+      // Fallback: check if it's any input/textarea that's not specifically for game input
+      if (activeElement.matches("input, textarea") && 
+          !activeElement.dataset?.gameInput) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  isGameControlKey(key) {
+    return [
+      " ", "spacebar", "enter",
+      "w", "a", "s", "d",
+      "arrowup", "arrowdown", "arrowleft", "arrowright"
+    ].includes(key);
   }
 
   getMovementInput() {
@@ -56,9 +81,6 @@ export class InputHandler {
     if (this.keysPressed["a"] || this.keysPressed["arrowleft"]) dx -= 1;
     if (this.keysPressed["d"] || this.keysPressed["arrowright"]) dx += 1;
     
-    if (dx !== 0 || dy !== 0) {
-    }
-    
     return { dx, dy };
   }
 
@@ -70,6 +92,28 @@ export class InputHandler {
   isResetKeyPressed() {
     if (this.disabled) return false;
     return this.keysPressed["enter"];
+  }
+
+  // Check if a specific key is pressed
+  isKeyPressed(key) {
+    if (this.disabled) return false;
+    return this.keysPressed[key.toLowerCase()];
+  }
+
+  // Get the game input element through the framework
+  getGameInputElement() {
+    if (this.vdomManager) {
+      return this.vdomManager.getRef(this.gameInputRefKey);
+    }
+    return null;
+  }
+
+  // Focus the game input element
+  focusGameInput() {
+    const gameInput = this.getGameInputElement();
+    if (gameInput) {
+      gameInput.focus();
+    }
   }
 
   enable() { 
