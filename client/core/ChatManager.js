@@ -6,6 +6,7 @@ export class ChatManager {
     this.container = container;
     this.socketManager = socketManager;
     this.eventRegistry = eventRegistry;
+    this.inputRef = null;
 
     this.vdom = new VDOMManager(
       this.container,
@@ -34,7 +35,7 @@ export class ChatManager {
 
     return new VNode("div", { class: "chat-container" }, [
       new VNode("div", { class: "chat-header" }, [
-        new VNode("h3", {}, ["💬 Chat"]),
+        new VNode("h3", {}, ["Chat"]),
       ]),
       new VNode("div", { 
         id: "chatMessages", 
@@ -46,35 +47,47 @@ export class ChatManager {
           id: "chatInput",
           type: "text",
           class: "chat-input",
-          placeholder: "Type your cute message... ✨",
+          placeholder: "Type your message...",
           maxlength: "200",
           value: state.inputValue,
-          oninput: (e) => setState({ inputValue: e.target.value }),
+          key: "chat-input-key",
+          oninput: (e) => {
+            const cursorPos = e.target.selectionStart;
+            setState({ inputValue: e.target.value });
+            
+            setTimeout(() => {
+              const input = document.getElementById("chatInput");
+              if (input && document.activeElement !== input) {
+                input.focus();
+                input.setSelectionRange(cursorPos, cursorPos);
+              }
+            }, 1);
+          },
           onkeydown: (e) => {
             if (e.key === "Enter") {
               e.preventDefault();
               this.sendMessage(setState);
-              e.target.blur(); 
             }
           }
         }),
         new VNode("button", {
-          id: "chatSend",
           class: "chat-send",
           onclick: () => this.sendMessage(setState)
-        }, ["Send! 💫"])
+        }, ["Send"])
       ])
     ]);
   }
 
   setupEventListeners() {
     this.eventRegistry.subscribe("keydown", (e) => {
-      const chatInput = this.container.querySelector("#chatInput");
+      const chatInput = document.getElementById("chatInput");
+      const activeElement = document.activeElement;
       
-      if (e.key === "Enter") {
-        if (document.activeElement !== chatInput) {
-          e.preventDefault();
-          if (chatInput) chatInput.focus();
+      if (e.key === "Enter" && activeElement !== chatInput) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (chatInput) {
+          chatInput.focus();
         }
       }
     });
@@ -85,7 +98,14 @@ export class ChatManager {
 
     if (currentValue.length > 0) {
       this.socketManager.sendChatMessage(currentValue);
-      setState({ inputValue: "" }); 
+      setState({ inputValue: "" });
+      
+      setTimeout(() => {
+        const chatInput = document.getElementById("chatInput");
+        if (chatInput) {
+          chatInput.focus();
+        }
+      }, 1);
     }
   }
 
@@ -96,9 +116,22 @@ export class ChatManager {
     });
     const messageWithTime = `[${timestamp}] ${messageText}`;
 
+    const wasFocused = document.activeElement && document.activeElement.id === "chatInput";
+    const cursorPos = wasFocused ? document.activeElement.selectionStart : 0;
+
     this.vdom.setState({
       messages: [...this.vdom.state.messages, messageWithTime].slice(-100),
     });
+
+    if (wasFocused) {
+      setTimeout(() => {
+        const chatInput = document.getElementById("chatInput");
+        if (chatInput) {
+          chatInput.focus();
+          chatInput.setSelectionRange(cursorPos, cursorPos);
+        }
+      }, 1);
+    }
 
     setTimeout(() => this.scrollToBottom(), 0);
   }
@@ -110,32 +143,45 @@ export class ChatManager {
     });
     const systemMessage = `[${timestamp}] * ${messageText}`;
 
+    const wasFocused = document.activeElement && document.activeElement.id === "chatInput";
+    const cursorPos = wasFocused ? document.activeElement.selectionStart : 0;
+
     this.vdom.setState({
       messages: [...this.vdom.state.messages, systemMessage].slice(-100),
     });
+
+    if (wasFocused) {
+      setTimeout(() => {
+        const chatInput = document.getElementById("chatInput");
+        if (chatInput) {
+          chatInput.focus();
+          chatInput.setSelectionRange(cursorPos, cursorPos);
+        }
+      }, 1);
+    }
 
     setTimeout(() => this.scrollToBottom(), 0);
   }
 
   notifyPlayerJoined(playerName) {
-    this.addSystemMessage(`🎮 ${playerName} joined the game`);
+    this.addSystemMessage(`${playerName} joined the game`);
   }
 
   notifyPlayerLeft(playerName) {
-    this.addSystemMessage(`👋 ${playerName} left the game`);
+    this.addSystemMessage(`${playerName} left the game`);
   }
 
   notifyGameStart() {
-    this.addSystemMessage("🚀 Game started! Good luck!");
+    this.addSystemMessage("Game started! Good luck!");
   }
 
   notifyPlayerDied(playerName, livesLeft) {
     if (livesLeft > 0) {
       this.addSystemMessage(
-        `💥 ${playerName} was eliminated! ${livesLeft} lives remaining`
+        `${playerName} was eliminated! ${livesLeft} lives remaining`
       );
     } else {
-      this.addSystemMessage(`☠️ ${playerName} is out of the game!`);
+      this.addSystemMessage(`${playerName} is out of the game!`);
     }
   }
 

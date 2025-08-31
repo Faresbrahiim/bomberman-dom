@@ -206,6 +206,10 @@ function changed(node1, node2) {
 function updateAttributes(el, newAttrs = {}, oldAttrs = {}) {
   if (!(el instanceof HTMLElement)) return; // skip text nodes
   
+  const wasFocused = document.activeElement === el;
+  const cursorPosition = wasFocused && el.selectionStart ? el.selectionStart : 0;
+  const isChatInput = el.id === "chatInput";
+  
   // Remove old attributes
   for (const key in oldAttrs) {
     if (!(key in newAttrs)) {
@@ -230,12 +234,31 @@ function updateAttributes(el, newAttrs = {}, oldAttrs = {}) {
       if (!value) el.removeAttribute("checked");
     } else if (key === "value" && el.tagName === "INPUT") {
       if (el.value !== value) {
+        const shouldPreserveCursor = wasFocused && isChatInput;
         el.value = value;
+        el.setAttribute("value", value);
+        
+        if (shouldPreserveCursor) {
+          setTimeout(() => {
+            el.focus();
+            if (el.setSelectionRange) {
+              el.setSelectionRange(cursorPosition, cursorPosition);
+            }
+          }, 0);
+        }
       }
-      el.setAttribute("value", value);
     } else if (oldAttrs[key] !== value) {
       el.setAttribute(key, value);
     }
+  }
+  
+  if (wasFocused && isChatInput && document.activeElement !== el) {
+    setTimeout(() => {
+      el.focus();
+      if (el.setSelectionRange) {
+        el.setSelectionRange(cursorPosition, cursorPosition);
+      }
+    }, 0);
   }
 }
 

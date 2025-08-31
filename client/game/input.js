@@ -1,4 +1,3 @@
-// input.js
 import { VNode } from "../framework/vdom.js";
 
 export class InputHandler {
@@ -14,7 +13,6 @@ export class InputHandler {
     const unsubDown = this.eventRegistry.subscribe("keydown", (e) => {
       if (this.disabled) return;
       
-      // السماح للإدخال المخفي فقط، مش كل input/textarea
       if (document.activeElement && 
           document.activeElement !== document.getElementById("game-keyboard-input") &&
           document.activeElement.matches("input, textarea")) {
