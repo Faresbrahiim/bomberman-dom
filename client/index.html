@@ -1,10 +1,79 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+
 <head>
-  <title>Bomberman DOM</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multiplayer Bomberman</title>
+  <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
-  <div id="app"></div>
-  <script type="module" src="./main.js"></script>
+  <div id="app">
+    <div class="loading">
+      <h2>Loading Bomberman...</h2>
+      <div class="spinner"></div>
+      <p>Initializing game components...</p>
+    </div>
+  </div>
+
+  <!-- Game Scripts -->
+  <script type="module">
+    // Import main application
+    import { Main } from './core/Main.js';
+
+    // Wait for DOM to be fully loaded
+    document.addEventListener('DOMContentLoaded', () => {
+      const appContainer = document.getElementById('app');
+
+      try {
+        // Initialize the main application
+        const mainApp = new Main(appContainer);
+        console.log('Bomberman game initialized successfully!');
+      } catch (error) {
+        console.error('Failed to initialize game:', error);
+        appContainer.innerHTML = `
+          <div class="loading error">
+              <h2>Game Failed to Load</h2>
+              <p>Please check the console for errors and refresh the page.</p>
+              <button class="retry-btn" onclick="location.reload()">
+                  Retry
+              </button>
+          </div>
+        `;
+      }
+    });
+
+    // Handle connection errors
+    window.addEventListener('error', (e) => {
+      console.error('Global error:', e.error);
+    });
+
+    // Service worker registration (optional, for offline support)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js')
+        .then((registration) => {
+          console.log('ServiceWorker registered successfully');
+        })
+        .catch((error) => {
+          console.log('ServiceWorker registration failed');
+        });
+    }
+  </script>
+
+  <!-- Preload important resources -->
+  <link rel="preload" href="./framework/vdom.js" as="script">
+  <link rel="preload" href="./core/Main.js" as="script">
+  <link rel="preload" href="./core/SocketManager.js" as="script">
+
+  <!-- Add meta tags for better mobile experience -->
+  <meta name="theme-color" content="#667eea">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <!-- Favicon (you can replace with actual icon) -->
+  <link rel="icon" type="image/svg+xml"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💣</text></svg>">
 </body>
+
 </html>
