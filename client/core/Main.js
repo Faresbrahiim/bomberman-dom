@@ -234,19 +234,6 @@ export class Main {
     // Only initialize game if not already initialized
     if (this.game) return;
 
-    // ChatManager should already be initialized from the lobby
-    // Only create if it doesn't exist
-    if (!this.chatManager) {
-      const chatContainer = document.getElementById("chatContainer");
-      if (chatContainer) {
-        this.chatManager = new ChatManager(
-          chatContainer,
-          this.socketManager,
-          this.eventRegistry
-        );
-      }
-    }
-
     this.game = new BombermanGame(
       this.socketManager,
       this.gameData,
