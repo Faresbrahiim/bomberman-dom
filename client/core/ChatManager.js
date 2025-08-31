@@ -8,11 +8,10 @@ export class ChatManager {
     this.eventRegistry = eventRegistry;
     this.inputRef = null;
 
-    this.vdom = new VDOMManager(
-      this.container,
-      this.render.bind(this),
-      { messages: [], inputValue: "" }
-    );
+    this.vdom = new VDOMManager(this.container, this.render.bind(this), {
+      messages: [],
+      inputValue: "",
+    });
     this.vdom.mount();
 
     this.setupEventListeners();
@@ -37,11 +36,15 @@ export class ChatManager {
       new VNode("div", { class: "chat-header" }, [
         new VNode("h3", {}, ["Chat"]),
       ]),
-      new VNode("div", { 
-        id: "chatMessages", 
-        class: "chat-messages",
-        key: "chat-messages-container"
-      }, messages),
+      new VNode(
+        "div",
+        {
+          id: "chatMessages",
+          class: "chat-messages",
+          key: "chat-messages-container",
+        },
+        messages
+      ),
       new VNode("div", { class: "chat-input-container" }, [
         new VNode("input", {
           id: "chatInput",
@@ -51,44 +54,24 @@ export class ChatManager {
           maxlength: "200",
           value: state.inputValue,
           key: "chat-input-key",
-          oninput: (e) => {
-            const cursorPos = e.target.selectionStart;
-            setState({ inputValue: e.target.value });
-            
-            setTimeout(() => {
-              const input = document.getElementById("chatInput");
-              if (input && document.activeElement !== input) {
-                input.focus();
-                input.setSelectionRange(cursorPos, cursorPos);
-              }
-            }, 1);
-          },
           onkeydown: (e) => {
             if (e.key === "Enter") {
+              setState({ inputValue: e.target.value });
               e.preventDefault();
               this.sendMessage(setState);
+              setInterval(() => e.target.focus());
             }
-          }
+          },
         }),
-        new VNode("button", {
-          class: "chat-send",
-          onclick: () => this.sendMessage(setState)
-        }, ["Send"])
-      ])
+      ]),
     ]);
   }
 
   setupEventListeners() {
     this.eventRegistry.subscribe("keydown", (e) => {
-      const chatInput = document.getElementById("chatInput");
-      const activeElement = document.activeElement;
-      
-      if (e.key === "Enter" && activeElement !== chatInput) {
+      if (e.key === "Enter") {
         e.preventDefault();
         e.stopPropagation();
-        if (chatInput) {
-          chatInput.focus();
-        }
       }
     });
   }
@@ -99,39 +82,19 @@ export class ChatManager {
     if (currentValue.length > 0) {
       this.socketManager.sendChatMessage(currentValue);
       setState({ inputValue: "" });
-      
-      setTimeout(() => {
-        const chatInput = document.getElementById("chatInput");
-        if (chatInput) {
-          chatInput.focus();
-        }
-      }, 1);
     }
   }
 
   addMessage(messageText) {
     const timestamp = new Date().toLocaleTimeString([], {
       hour: "2-digit",
-      minute: "2-digit"
+      minute: "2-digit",
     });
     const messageWithTime = `[${timestamp}] ${messageText}`;
-
-    const wasFocused = document.activeElement && document.activeElement.id === "chatInput";
-    const cursorPos = wasFocused ? document.activeElement.selectionStart : 0;
 
     this.vdom.setState({
       messages: [...this.vdom.state.messages, messageWithTime].slice(-100),
     });
-
-    if (wasFocused) {
-      setTimeout(() => {
-        const chatInput = document.getElementById("chatInput");
-        if (chatInput) {
-          chatInput.focus();
-          chatInput.setSelectionRange(cursorPos, cursorPos);
-        }
-      }, 1);
-    }
 
     setTimeout(() => this.scrollToBottom(), 0);
   }
@@ -139,26 +102,13 @@ export class ChatManager {
   addSystemMessage(messageText) {
     const timestamp = new Date().toLocaleTimeString([], {
       hour: "2-digit",
-      minute: "2-digit"
+      minute: "2-digit",
     });
     const systemMessage = `[${timestamp}] * ${messageText}`;
-
-    const wasFocused = document.activeElement && document.activeElement.id === "chatInput";
-    const cursorPos = wasFocused ? document.activeElement.selectionStart : 0;
 
     this.vdom.setState({
       messages: [...this.vdom.state.messages, systemMessage].slice(-100),
     });
-
-    if (wasFocused) {
-      setTimeout(() => {
-        const chatInput = document.getElementById("chatInput");
-        if (chatInput) {
-          chatInput.focus();
-          chatInput.setSelectionRange(cursorPos, cursorPos);
-        }
-      }, 1);
-    }
 
     setTimeout(() => this.scrollToBottom(), 0);
   }

@@ -11,13 +11,13 @@ export class VDOMManager {
   setState = (newState) => {
     this.state = { ...this.state, ...newState };
     if (!this.renderFn || !this.mounted) return;
-    
+
     const newVNode = this.renderFn(this.state, this.setState);
     updateElement(this.container, newVNode, this.oldVNode, 0);
     this.oldVNode = newVNode;
   };
 
-  // Initial mount -   
+  // Initial mount -
   mount(vnode = null) {
     if (this.mounted) {
       console.warn("VDOMManager already mounted");
@@ -25,7 +25,7 @@ export class VDOMManager {
     }
 
     this.container.innerHTML = "";
-    
+
     if (vnode) {
       this.oldVNode = vnode;
       this.container.appendChild(createDOMNode(vnode));
@@ -33,9 +33,11 @@ export class VDOMManager {
       this.oldVNode = this.renderFn(this.state, this.setState);
       this.container.appendChild(createDOMNode(this.oldVNode));
     } else {
-      throw new Error("VDOMManager: mount() needs either a vnode or a renderFn");
+      throw new Error(
+        "VDOMManager: mount() needs either a vnode or a renderFn"
+      );
     }
-    
+
     this.mounted = true;
   }
 
@@ -90,7 +92,7 @@ function updateElement(parent, newVNode, oldVNode, index = 0) {
   // Update attributes
   if (existingEl) {
     updateAttributes(existingEl, newVNode.attrs, oldVNode.attrs);
-    
+
     const newChildren = newVNode.children || [];
     const oldChildren = oldVNode.children || [];
     reconcileKeyedChildren(existingEl, newChildren, oldChildren);
@@ -204,13 +206,13 @@ function changed(node1, node2) {
 }
 
 function updateAttributes(el, newAttrs = {}, oldAttrs = {}) {
-// More robust check for HTMLElement
-  if (!el || typeof el.setAttribute !== 'function') return;
-  
-  // Rest of the function remains the same...
+  if (!(el instanceof HTMLElement)) return; // skip text nodes
+
   const wasFocused = document.activeElement === el;
-  const cursorPosition = wasFocused && el.selectionStart ? el.selectionStart : 0;
+  const cursorPosition =
+    wasFocused && el.selectionStart ? el.selectionStart : 0;
   const isChatInput = el.id === "chatInput";
+
   // Remove old attributes
   for (const key in oldAttrs) {
     if (!(key in newAttrs)) {
@@ -238,7 +240,7 @@ function updateAttributes(el, newAttrs = {}, oldAttrs = {}) {
         const shouldPreserveCursor = wasFocused && isChatInput;
         el.value = value;
         el.setAttribute("value", value);
-        
+
         if (shouldPreserveCursor) {
           setTimeout(() => {
             el.focus();
@@ -252,7 +254,7 @@ function updateAttributes(el, newAttrs = {}, oldAttrs = {}) {
       el.setAttribute(key, value);
     }
   }
-  
+
   if (wasFocused && isChatInput && document.activeElement !== el) {
     setTimeout(() => {
       el.focus();
@@ -266,7 +268,7 @@ function updateAttributes(el, newAttrs = {}, oldAttrs = {}) {
 function createDOMNode(vnode) {
   if (vnode == null) return document.createTextNode("");
   if (typeof vnode === "string") return document.createTextNode(vnode);
-  
+
   const el = document.createElement(vnode.tag);
   updateAttributes(el, vnode.attrs, {});
 
@@ -275,6 +277,9 @@ function createDOMNode(vnode) {
       el.appendChild(createDOMNode(child));
     }
   });
-  
+  const input = document.getElementById("chatInput");
+  if (input && document.activeElement !== input) {
+    input.focus();
+  }
   return el;
 }

@@ -1,6 +1,6 @@
 import { GameConstants } from "./constant.js";
 import { BombermanMapGenerator } from "./Map.js";
-import { InputHandler, createGameKeyboardInput } from "./input.js";
+import { InputHandler } from "./input.js";
 import { GameUI } from "./gameUI.js";
 import { Player } from "./Player.js";
 import { Bomb } from "./Bomb.js";
@@ -36,14 +36,6 @@ export class BombermanGame {
     // sockets
     this.setupSocketListeners();
   }
-
-  focusKeyboard() {
-    const kb = document.getElementById("game-keyboard-input");
-    if (kb && kb !== document.activeElement) {
-      kb.focus();
-    }
-  }
-
   // ---------- RENDER ----------
   render() {
 
@@ -80,7 +72,7 @@ export class BombermanGame {
     ]);
 
     // hidden input for keyboard capture
-    const keyboardVNode = createGameKeyboardInput(this.eventRegistry);
+    
 
     return new VNode(
       "div",
@@ -88,15 +80,13 @@ export class BombermanGame {
         id: "game-root",
         style: `position:relative;width:${W}px;height:${H}px;margin:0 auto;`,
       },
-      [mapVNode, bombsVNode, playersVNode, hudVNode, keyboardVNode]
+      [mapVNode, bombsVNode, playersVNode, hudVNode]
     );
   }
 
   requestRender() {
     // Force a re-render
     this.vdom.setState({ tick: (this.vdom.state?.tick || 0) + 1 });
-    // Ensure keyboard focus after render
-    requestAnimationFrame(() => this.focusKeyboard());
   }
 
   // ---------- LIFECYCLE ----------
@@ -108,10 +98,7 @@ export class BombermanGame {
     
     this.inputHandler.enable();
     
-    setTimeout(() => {
-      this.focusKeyboard();
-      console.log("focus..");
-    }, 200);
+
     
     this.gameLoop();
   }
