@@ -11,6 +11,7 @@ export class Main {
     this.socketManager = null;
     this.chatManager = null;
     this.game = null;
+    this.gameStatus = "";
     this.nickname = null;
     this.roomId = null;
     this.countdownSeconds = null;
@@ -24,6 +25,7 @@ export class Main {
       errorMessage: "",
       playerCount: 1,
       countdownSeconds: null,
+      tick: null,
     });
 
     this.init();
@@ -175,6 +177,7 @@ export class Main {
     this.socketManager = new SocketManager(this.nickname);
 
     this.socketManager.on("connected", () => {
+      this.gameStatus = "waiting";
       setState({ currentView: "lobby" });
       this.initializeChatManager();
     });
@@ -196,8 +199,9 @@ export class Main {
     });
 
     this.socketManager.on("gameStart", (gameData) => {
-      setState({ currentView: "game" });
+      this.gameStatus = "started";
       this.gameData = gameData;
+      setState({ currentView: "game" });
     });
 
     this.socketManager.on("invalidNickname", (reason) => {
@@ -224,26 +228,41 @@ export class Main {
     }, 100);
   }
 
+  // Main.js - update initializeGame and renderGameLayout methods
+
   initializeGame() {
-    const chatContainer = document.getElementById("chatContainer");
-    if (chatContainer) {
-      this.chatManager = new ChatManager(
-        chatContainer,
-        this.socketManager,
-        this.eventRegistry
-      );
+    // Only initialize game if not already initialized
+    if (this.game) return;
+
+    // ChatManager should already be initialized from the lobby
+    // Only create if it doesn't exist
+    if (!this.chatManager) {
+      const chatContainer = document.getElementById("chatContainer");
+      if (chatContainer) {
+        this.chatManager = new ChatManager(
+          chatContainer,
+          this.socketManager,
+          this.eventRegistry
+        );
+      }
     }
 
     this.game = new BombermanGame(
       this.socketManager,
       this.gameData,
-      this.eventRegistry
+      this.eventRegistry,
+      this.vdom
     );
     this.game.chatManager = this.chatManager;
     this.game.init();
   }
+
   renderGameLayout(state, setState) {
-    this.initializeGame();
+    // Initialize game on first render, not on every render
+    if (!this.game) {
+      this.initializeGame();
+    }
+
     return new VNode("div", { class: "game-layout" }, [
       new VNode("div", { class: "game-area" }, [
         new VNode("div", { class: "banner" }, [
@@ -255,10 +274,30 @@ export class Main {
         new VNode(
           "div",
           { id: "gameMapContainer", class: "map-container" },
-          this.gameData ? [this.game.render()] : []
+          this.game ? [this.game.render()] : []
         ),
       ]),
-      new VNode("div", { id: "chatContainer", class: "chat-container" }),
     ]);
+  }
+  // Main.js - add a destroy method
+  destroy() {
+    if (this.game) {
+      this.game.destroy();
+      this.game = null;
+    }
+
+    if (this.chatManager) {
+      // You might want to add a destroy method to ChatManager too
+      this.chatManager = null;
+    }
+
+    if (this.socketManager) {
+      this.socketManager.disconnect();
+      this.socketManager = null;
+    }
+
+    if (this.vdom) {
+      this.vdom.unmount();
+    }
   }
 }

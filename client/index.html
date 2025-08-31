@@ -44,11 +44,6 @@
       }
     });
 
-    // Handle connection errors
-    window.addEventListener('error', (e) => {
-      console.error('Global error:', e.error);
-    });
-
     // Service worker registration (optional, for offline support)
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js')

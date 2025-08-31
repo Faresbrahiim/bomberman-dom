@@ -4,19 +4,17 @@ import { InputHandler, createGameKeyboardInput } from "./input.js";
 import { GameUI } from "./gameUI.js";
 import { Player } from "./Player.js";
 import { Bomb } from "./Bomb.js";
-import { EventRegistry } from "../framework/eventhandler.js";
-import { VDOMManager } from "../framework/VDOMmanager.js";
 import { VNode } from "../framework/vdom.js";
 
 export class BombermanGame {
-  constructor(socketManager, gameData) {
+  constructor(socketManager, gameData, eventRegistry, vdom) {
     // networking
     this.socketManager = socketManager;
     this.seed = gameData.seed;
     this.localPlayerId = socketManager.playerId;
 
     // framework
-    this.eventRegistry = new EventRegistry();
+    this.eventRegistry = eventRegistry,
     this.inputHandler = new InputHandler(this.eventRegistry);
     this.ui = new GameUI();
 
@@ -33,15 +31,7 @@ export class BombermanGame {
     // players from lobby/gameData
     this.initializePlayers(gameData.players);
 
-    // Fix: Clean container setup to prevent double rendering
-    const container = document.getElementById("gameMapContainer");
-    if (!container) throw new Error("#gameMapContainer not found");
-    
-    // Clear everything first
-    container.innerHTML = "";
-    
-    // Create VDOM manager directly on the container
-    this.vdom = new VDOMManager(container, () => this.render());
+    this.vdom = vdom 
 
     // sockets
     this.setupSocketListeners();
@@ -56,6 +46,7 @@ export class BombermanGame {
 
   // ---------- RENDER ----------
   render() {
+
     const W = this.mapWidth * GameConstants.TILE_SIZE;
     const H = this.mapHeight * GameConstants.TILE_SIZE;
 

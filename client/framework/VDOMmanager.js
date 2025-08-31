@@ -204,12 +204,13 @@ function changed(node1, node2) {
 }
 
 function updateAttributes(el, newAttrs = {}, oldAttrs = {}) {
-  if (!(el instanceof HTMLElement)) return; // skip text nodes
+// More robust check for HTMLElement
+  if (!el || typeof el.setAttribute !== 'function') return;
   
+  // Rest of the function remains the same...
   const wasFocused = document.activeElement === el;
   const cursorPosition = wasFocused && el.selectionStart ? el.selectionStart : 0;
   const isChatInput = el.id === "chatInput";
-  
   // Remove old attributes
   for (const key in oldAttrs) {
     if (!(key in newAttrs)) {
