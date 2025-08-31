@@ -87,7 +87,7 @@ export class BombermanGame {
         playersVNode,
         hudVNode,
         // Hidden input for keyboard capture with framework reference
-        VNode.input({
+        new VNode("input", {
           ref: "game-keyboard-input",
           type: "hidden",
           "data-game-input": "true",
@@ -351,9 +351,6 @@ export class BombermanGame {
     // apply movement if not colliding
     let actualDx = 0,
       actualDy = 0;
-    // apply movement if not colliding
-    let actualDx = 0,
-      actualDy = 0;
     const nx = me.position.x + dx;
     if (!this.isColliding(nx, me.position.y)) {
       me.position.x = nx;
@@ -569,4 +566,154 @@ export class BombermanGame {
 
   handleExplosionCells(cells) {
     cells.forEach((c) => this.handleExplosionAt(c.x, c.y));
-  }}
+  }
+
+  handleExplosionAt(x, y) {
+    // player hits
+    console.log(this.players);
+
+    const type = this.currentMap[y][x];
+    if (type === GameConstants.CELL_TYPES.DESTRUCTIBLE) {
+      this.destroyWall(x, y);
+    } else if (type === GameConstants.CELL_TYPES.BOMB) {
+      const chain = [...this.activeBombs.values()].find(
+        (b) => b.x === x && b.y === y && !b.exploded
+      );
+      if (chain)
+        setTimeout(() => {
+          if (this.activeBombs.has(chain.bombId) && !chain.exploded) {
+            this.explodeBomb(chain.x, chain.y, chain.bombId);
+          }
+        }, 100);
+    }
+
+    // Visual flame effect through framework
+    this.createFlameEffect(x, y);
+  }
+
+  // Create flame effect using framework system
+  createFlameEffect(x, y) {
+    setTimeout(() => {
+      // Find the cell element through the framework
+      const gameContainer = this.getGameMapContainer();
+      if (gameContainer) {
+        const cell = gameContainer.querySelector(`[data-x="${x}"][data-y="${y}"]`);
+        if (cell) {
+          cell.classList.add("flame");
+          setTimeout(() => {
+            cell.classList.remove("flame");
+          }, GameConstants.FLAME_DURATION);
+        }
+      }
+    }, 50);
+  }
+
+  destroyWall(x, y) {
+    const key = `${x},${y}`;
+    let revealed = null;
+
+    if (this.hiddenPowerups.has(key)) {
+      revealed = this.hiddenPowerups.get(key);
+      this.hiddenPowerups.delete(key);
+      this.currentMap[y][x] = revealed;
+    } else {
+      this.currentMap[y][x] = GameConstants.CELL_TYPES.EMPTY;
+    }
+
+    this.socketManager.sendWallDestroyed({ x, y }, revealed);
+    this.requestRender();
+  }
+
+  handleWallDestroyed(pos, revealed) {
+    if (revealed) {
+      this.currentMap[pos.y][pos.x] = revealed;
+    } else {
+      this.currentMap[pos.y][pos.x] = GameConstants.CELL_TYPES.EMPTY;
+    }
+    this.requestRender();
+  }
+
+  // ---------- SPECTATOR / GAME OVER ----------
+  enableSpectatorMode() {
+    this.inputHandler.disable();
+    this.showSpectatorMessage();
+  }
+
+  showSpectatorMessage() {
+    const overlayContent = `<div class="spectator-message">
+      <h3>SPECTATOR MODE</h3>
+      <p>You have been eliminated. Watch the remaining players!</p>
+    </div>`;
+    
+    this.createOverlay("spectatorOverlay", "spectator-overlay", overlayContent);
+  }
+
+  handlePlayerEliminated(data) {
+    if (this.chatManager) {
+      const s = this.getOrdinalSuffix(data.eliminationOrder);
+      this.chatManager.addSystemMessage(
+        `${data.nickname} eliminated! Finished ${data.eliminationOrder}${s} place.`
+      );
+    }
+  }
+
+  getOrdinalSuffix(n) {
+    const suf = ["th", "st", "nd", "rd"],
+      v = n % 100;
+    return suf[(v - 20) % 10] || suf[v] || suf[0];
+  }
+
+  handleGameOver(leaderboard, winner) {
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+    this.inputHandler.disable();
+
+    // Remove existing game over overlay if it exists
+    this.removeOverlay("gameOverOverlay");
+
+    const overlayContent = `
+      <div class="game-over-content">
+        <h1 class="game-over-title">Game Over</h1>
+        <h2 class="game-over-winner">${
+          winner ? `${winner.nickname} Wins!` : "No Winner"
+        }</h2>
+        <h3 class="leaderboard-title">Final Rankings</h3>
+        <div class="leaderboard-list">
+          ${leaderboard
+            .map(
+              (p) => `
+            <div class="leaderboard-row rank-${p.rank}">
+              <span class="rank">${this.getRankIcon(p.rank)} ${
+                p.rank
+              }${this.getOrdinalSuffix(p.rank)}</span>
+              <span class="nickname">${p.nickname}</span>
+              <span class="lives">${
+                p.lives > 0 ? ` (${p.lives} lives)` : " (Eliminated)"
+              }</span>
+            </div>`
+            )
+            .join("")}
+        </div>
+        <p class="return-lobby-message">Press Ctrl + R to restart GAME</p>
+      </div>
+    `;
+
+    this.createOverlay("gameOverOverlay", "game-over-overlay", overlayContent);
+  }
+
+  getRankIcon(rank) {
+    const icons = { 1: "🥇", 2: "🥈", 3: "🥉", 4: "4️⃣" };
+    return icons[rank] || rank;
+  }
+
+  handlePlayerDeath(data) {
+    const p = this.players.get(data);
+    if (p && p.lives > 0) {
+      const took = p.takeDamage();
+      console.log(took);
+      this.requestRender();
+    }
+  }
+}
