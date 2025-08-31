@@ -14,8 +14,9 @@ export class BombermanGame {
     this.localPlayerId = socketManager.playerId;
 
     // framework
-    (this.eventRegistry = eventRegistry),
-      (this.inputHandler = new InputHandler(this.eventRegistry));
+    this.eventRegistry = eventRegistry;
+    this.vdom = vdom;
+    this.inputHandler = new InputHandler(this.eventRegistry);
     this.ui = new GameUI();
 
     // world state
@@ -28,14 +29,16 @@ export class BombermanGame {
     this.mapHeight = 11;
     this.animationFrameId = null;
 
+    // overlay management
+    this.overlayElements = new Map(); // Track overlays using framework
+
     // players from lobby/gameData
     this.initializePlayers(gameData.players);
-
-    this.vdom = vdom;
 
     // sockets
     this.setupSocketListeners();
   }
+
   // ---------- RENDER ----------
   render() {
     const W = this.mapWidth * GameConstants.TILE_SIZE;
@@ -66,20 +69,34 @@ export class BombermanGame {
       Array.from(this.players.values()).map((p) => p.render())
     );
 
-    const hudVNode = new VNode("div", { id: "playerStatusArea" }, [
+    const hudVNode = new VNode("div", { ref: "playerStatusArea" }, [
       this.ui.renderPlayersStatus(this.players),
     ]);
 
-    // hidden input for keyboard capture
-
-    return new VNode(
+    // Game container with reference for overlay management
+    const gameContainer = new VNode(
       "div",
       {
+        ref: "gameMapContainer",
         id: "game-root",
         style: `position:relative;width:${W}px;height:${H}px;margin:0 auto;`,
       },
-      [mapVNode, bombsVNode, playersVNode, hudVNode]
+      [
+        mapVNode,
+        bombsVNode,
+        playersVNode,
+        hudVNode,
+        // Hidden input for keyboard capture with framework reference
+        VNode.input({
+          ref: "game-keyboard-input",
+          type: "hidden",
+          "data-game-input": "true",
+          style: "position:absolute;left:-9999px;"
+        })
+      ]
     );
+
+    return gameContainer;
   }
 
   requestRender() {
@@ -93,6 +110,9 @@ export class BombermanGame {
     this.vdom.mount(); // initial paint
 
     this.inputHandler.enable();
+    
+    // Focus the game input element through framework
+    this.focusGameInput();
 
     this.gameLoop();
   }
@@ -105,6 +125,49 @@ export class BombermanGame {
     this.inputHandler.destroy();
     if (this.vdom) {
       this.vdom.unmount();
+    }
+  }
+
+  // Focus game input using framework reference
+  focusGameInput() {
+    const gameInput = this.vdom.getRef("game-keyboard-input");
+    if (gameInput) {
+      gameInput.focus();
+    }
+  }
+
+  // Get game map container using framework reference
+  getGameMapContainer() {
+    return this.vdom.getRef("gameMapContainer");
+  }
+
+  // Create overlay using framework system
+  createOverlay(overlayId, overlayClass, content) {
+    const container = this.getGameMapContainer();
+    if (!container) return null;
+
+    // Remove existing overlay if it exists
+    this.removeOverlay(overlayId);
+
+    const overlay = document.createElement("div");
+    overlay.id = overlayId;
+    overlay.className = overlayClass;
+    overlay.innerHTML = content;
+    
+    container.appendChild(overlay);
+    
+    // Register with framework for future reference
+    this.vdom.registerRef(overlayId, overlay);
+    
+    return overlay;
+  }
+
+  // Remove overlay using framework system
+  removeOverlay(overlayId) {
+    const overlay = this.vdom.getRef(overlayId);
+    if (overlay && overlay.parentNode) {
+      overlay.parentNode.removeChild(overlay);
+      this.vdom.unregisterRef(overlayId);
     }
   }
 
@@ -258,11 +321,6 @@ export class BombermanGame {
     let dx = mv.dx * me.getCurrentSpeed();
     let dy = mv.dy * me.getCurrentSpeed();
 
-    // للتشخيص
-    // if (dx !== 0 || dy !== 0) {
-    //   console.log("try move player", { dx, dy, speed: me.getCurrentSpeed() });
-    // }
-
     // corner assist (horizontal)
     if (dx !== 0 && this.isColliding(me.position.x + dx, me.position.y)) {
       const gridY = Math.floor(
@@ -293,6 +351,9 @@ export class BombermanGame {
     // apply movement if not colliding
     let actualDx = 0,
       actualDy = 0;
+    // apply movement if not colliding
+    let actualDx = 0,
+      actualDy = 0;
     const nx = me.position.x + dx;
     if (!this.isColliding(nx, me.position.y)) {
       me.position.x = nx;
@@ -302,10 +363,6 @@ export class BombermanGame {
     if (!this.isColliding(me.position.x, ny)) {
       me.position.y = ny;
       actualDy = dy;
-    }
-
-    // للتشخيص
-    if (actualDx !== 0 || actualDy !== 0) {
     }
 
     // powerups + animation
@@ -512,155 +569,4 @@ export class BombermanGame {
 
   handleExplosionCells(cells) {
     cells.forEach((c) => this.handleExplosionAt(c.x, c.y));
-  }
-
-  handleExplosionAt(x, y) {
-    // player hits
-    console.log(this.players);
-
-    const type = this.currentMap[y][x];
-    if (type === GameConstants.CELL_TYPES.DESTRUCTIBLE) {
-      this.destroyWall(x, y);
-    } else if (type === GameConstants.CELL_TYPES.BOMB) {
-      const chain = [...this.activeBombs.values()].find(
-        (b) => b.x === x && b.y === y && !b.exploded
-      );
-      if (chain)
-        setTimeout(() => {
-          if (this.activeBombs.has(chain.bombId) && !chain.exploded) {
-            this.explodeBomb(chain.x, chain.y, chain.bombId);
-          }
-        }, 100);
-    }
-
-    // quick visual flame effect
-    setTimeout(() => {
-      const cell = document.querySelector(`[data-x="${x}"][data-y="${y}"]`);
-      if (cell) {
-        cell.classList.add("flame");
-        setTimeout(() => {
-          cell.classList.remove("flame");
-        }, GameConstants.FLAME_DURATION);
-      }
-    }, 50);
-  }
-
-  destroyWall(x, y) {
-    const key = `${x},${y}`;
-    let revealed = null;
-
-    if (this.hiddenPowerups.has(key)) {
-      revealed = this.hiddenPowerups.get(key);
-      this.hiddenPowerups.delete(key);
-      this.currentMap[y][x] = revealed;
-    } else {
-      this.currentMap[y][x] = GameConstants.CELL_TYPES.EMPTY;
-    }
-
-    this.socketManager.sendWallDestroyed({ x, y }, revealed);
-    this.requestRender();
-  }
-
-  handleWallDestroyed(pos, revealed) {
-    if (revealed) {
-      this.currentMap[pos.y][pos.x] = revealed;
-    } else {
-      this.currentMap[pos.y][pos.x] = GameConstants.CELL_TYPES.EMPTY;
-    }
-    this.requestRender();
-  }
-
-  // ---------- SPECTATOR / GAME OVER ----------
-  enableSpectatorMode() {
-    this.inputHandler.disable();
-    this.showSpectatorMessage();
-  }
-
-  showSpectatorMessage() {
-    const wrap = document.getElementById("gameMapContainer");
-    if (!wrap || document.getElementById("spectatorOverlay")) return;
-    const overlay = document.createElement("div");
-    overlay.id = "spectatorOverlay";
-    overlay.className = "spectator-overlay";
-    overlay.innerHTML = `<div class="spectator-message">
-      <h3>SPECTATOR MODE</h3><p>You have been eliminated. Watch the remaining players!</p>
-    </div>`;
-    wrap.appendChild(overlay);
-  }
-
-  handlePlayerEliminated(data) {
-    if (this.chatManager) {
-      const s = this.getOrdinalSuffix(data.eliminationOrder);
-      this.chatManager.addSystemMessage(
-        `${data.nickname} eliminated! Finished ${data.eliminationOrder}${s} place.`
-      );
-    }
-  }
-
-  getOrdinalSuffix(n) {
-    const suf = ["th", "st", "nd", "rd"],
-      v = n % 100;
-    return suf[(v - 20) % 10] || suf[v] || suf[0];
-  }
-
-  handleGameOver(leaderboard, winner) {
-    if (this.animationFrameId) {
-      cancelAnimationFrame(this.animationFrameId);
-      this.animationFrameId = null;
-    }
-    this.inputHandler.disable();
-
-    const wrap = document.getElementById("gameMapContainer");
-    if (!wrap) return;
-    const old = document.getElementById("gameOverOverlay");
-    if (old) old.remove();
-
-    const overlay = document.createElement("div");
-    overlay.id = "gameOverOverlay";
-    overlay.className = "game-over-overlay";
-
-    const content = document.createElement("div");
-    content.className = "game-over-content";
-    content.innerHTML = `
-      <h1 class="game-over-title">Game Over</h1>
-      <h2 class="game-over-winner">${
-        winner ? `${winner.nickname} Wins!` : "No Winner"
-      }</h2>
-      <h3 class="leaderboard-title">Final Rankings</h3>
-      <div class="leaderboard-list">
-        ${leaderboard
-          .map(
-            (p) => `
-          <div class="leaderboard-row rank-${p.rank}">
-            <span class="rank">${this.getRankIcon(p.rank)} ${
-              p.rank
-            }${this.getOrdinalSuffix(p.rank)}</span>
-            <span class="nickname">${p.nickname}</span>
-            <span class="lives">${
-              p.lives > 0 ? ` (${p.lives} lives)` : " (Eliminated)"
-            }</span>
-          </div>`
-          )
-          .join("")}
-      </div>
-      <p class="return-lobby-message">Press Ctrl + R to restart GAME</p>
-    `;
-    overlay.appendChild(content);
-    wrap.appendChild(overlay);
-  }
-
-  getRankIcon(rank) {
-    const icons = { 1: "🥇", 2: "🥈", 3: "🥉", 4: "4️⃣" };
-    return icons[rank] || rank;
-  }
-
-  handlePlayerDeath(data) {
-    const p = this.players.get(data);
-    if (p && p.lives > 0) {
-      const took = p.takeDamage();
-      console.log(took);
-
-      this.requestRender();
-    }
-  }
-}
+  }}
