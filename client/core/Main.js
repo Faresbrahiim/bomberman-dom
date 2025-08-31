@@ -217,14 +217,11 @@ export class Main {
 
   initializeChatManager() {
     setTimeout(() => {
-      const chatContainer = document.getElementById("chatContainer");
-      if (chatContainer) {
-        this.chatManager = new ChatManager(
-          chatContainer,
-          this.socketManager,
-          this.eventRegistry
-        );
-      }
+      this.chatManager = new ChatManager(
+        chatContainer,
+        this.socketManager,
+        this.eventRegistry
+      );
     }, 100);
   }
 

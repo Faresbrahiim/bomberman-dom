@@ -8,11 +8,10 @@ export class ChatManager {
     this.eventRegistry = eventRegistry;
     this.inputRef = null;
 
-    this.vdom = new VDOMManager(
-      this.container,
-      this.render.bind(this),
-      { messages: [], inputValue: "" }
-    );
+    this.vdom = new VDOMManager(this.container, this.render.bind(this), {
+      messages: [],
+      inputValue: "",
+    });
     this.vdom.mount();
 
     this.setupEventListeners();
@@ -37,11 +36,15 @@ export class ChatManager {
       new VNode("div", { class: "chat-header" }, [
         new VNode("h3", {}, ["Chat"]),
       ]),
-      new VNode("div", { 
-        id: "chatMessages", 
-        class: "chat-messages",
-        key: "chat-messages-container"
-      }, messages),
+      new VNode(
+        "div",
+        {
+          id: "chatMessages",
+          class: "chat-messages",
+          key: "chat-messages-container",
+        },
+        messages
+      ),
       new VNode("div", { class: "chat-input-container" }, [
         new VNode("input", {
           id: "chatInput",
@@ -54,13 +57,11 @@ export class ChatManager {
           oninput: (e) => {
             const cursorPos = e.target.selectionStart;
             setState({ inputValue: e.target.value });
-            
+
             setTimeout(() => {
-              const input = document.getElementById("chatInput");
-              if (input && document.activeElement !== input) {
-                input.focus();
-                input.setSelectionRange(cursorPos, cursorPos);
-              }
+              const input = e.target;
+              input.focus();
+              input.setSelectionRange(cursorPos, cursorPos);
             }, 1);
           },
           onkeydown: (e) => {
@@ -68,22 +69,24 @@ export class ChatManager {
               e.preventDefault();
               this.sendMessage(setState);
             }
-          }
+          },
         }),
-        new VNode("button", {
-          class: "chat-send",
-          onclick: () => this.sendMessage(setState)
-        }, ["Send"])
-      ])
+        new VNode(
+          "button",
+          {
+            class: "chat-send",
+            onclick: (e) => this.sendMessage(setState),
+          },
+          ["Send"]
+        ),
+      ]),
     ]);
   }
 
   setupEventListeners() {
     this.eventRegistry.subscribe("keydown", (e) => {
-      const chatInput = document.getElementById("chatInput");
-      const activeElement = document.activeElement;
       
-      if (e.key === "Enter" && activeElement !== chatInput) {
+      if (e.key === "Enter" && e.target.id === "chatInput") {
         e.preventDefault();
         e.stopPropagation();
         if (chatInput) {
@@ -99,7 +102,7 @@ export class ChatManager {
     if (currentValue.length > 0) {
       this.socketManager.sendChatMessage(currentValue);
       setState({ inputValue: "" });
-      
+
       setTimeout(() => {
         const chatInput = document.getElementById("chatInput");
         if (chatInput) {
@@ -112,11 +115,12 @@ export class ChatManager {
   addMessage(messageText) {
     const timestamp = new Date().toLocaleTimeString([], {
       hour: "2-digit",
-      minute: "2-digit"
+      minute: "2-digit",
     });
     const messageWithTime = `[${timestamp}] ${messageText}`;
 
-    const wasFocused = document.activeElement && document.activeElement.id === "chatInput";
+    const wasFocused =
+      document.activeElement && document.activeElement.id === "chatInput";
     const cursorPos = wasFocused ? document.activeElement.selectionStart : 0;
 
     this.vdom.setState({
@@ -139,11 +143,12 @@ export class ChatManager {
   addSystemMessage(messageText) {
     const timestamp = new Date().toLocaleTimeString([], {
       hour: "2-digit",
-      minute: "2-digit"
+      minute: "2-digit",
     });
     const systemMessage = `[${timestamp}] * ${messageText}`;
 
-    const wasFocused = document.activeElement && document.activeElement.id === "chatInput";
+    const wasFocused =
+      document.activeElement && document.activeElement.id === "chatInput";
     const cursorPos = wasFocused ? document.activeElement.selectionStart : 0;
 
     this.vdom.setState({
