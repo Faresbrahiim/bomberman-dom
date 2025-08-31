@@ -2,7 +2,7 @@
 export class SocketManager {
   constructor(nickname) {
     this.nickname = nickname;
-    this.ws = new WebSocket("ws://localhost:3000");
+    this.ws = new WebSocket("/");
     this.eventHandlers = {};
 
     this.ws.onopen = () => {

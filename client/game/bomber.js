@@ -14,8 +14,8 @@ export class BombermanGame {
     this.localPlayerId = socketManager.playerId;
 
     // framework
-    this.eventRegistry = eventRegistry,
-    this.inputHandler = new InputHandler(this.eventRegistry);
+    (this.eventRegistry = eventRegistry),
+      (this.inputHandler = new InputHandler(this.eventRegistry));
     this.ui = new GameUI();
 
     // world state
@@ -31,14 +31,13 @@ export class BombermanGame {
     // players from lobby/gameData
     this.initializePlayers(gameData.players);
 
-    this.vdom = vdom 
+    this.vdom = vdom;
 
     // sockets
     this.setupSocketListeners();
   }
   // ---------- RENDER ----------
   render() {
-
     const W = this.mapWidth * GameConstants.TILE_SIZE;
     const H = this.mapHeight * GameConstants.TILE_SIZE;
 
@@ -72,7 +71,6 @@ export class BombermanGame {
     ]);
 
     // hidden input for keyboard capture
-    
 
     return new VNode(
       "div",
@@ -91,15 +89,11 @@ export class BombermanGame {
 
   // ---------- LIFECYCLE ----------
   init() {
-
-    
     this.generateMap();
     this.vdom.mount(); // initial paint
-    
-    this.inputHandler.enable();
-    
 
-    
+    this.inputHandler.enable();
+
     this.gameLoop();
   }
 
@@ -164,13 +158,20 @@ export class BombermanGame {
     });
 
     this.socketManager.on("playerDied", (data) => {
-      const p = this.players.get(data.playerId);
-      if (!p) return;
-      p.lives = data.lives;
-      if (data.lives === 0 && data.playerId === this.localPlayerId) {
-        this.enableSpectatorMode();
+      const player = this.players.get(data.playerId);
+      if (player) {
+        // Update player lives from server data
+        this.handlePlayerDeath(player.playerId);
+        player.lives = data.lives;
+
+        // Handle local player elimination
+        if (data.playerId === this.localPlayerId && data.lives === 0) {
+          this.enableSpectatorMode();
+        }
+
+        // Update UI for all players
+        this.ui.updateAllPlayersStatus(this.players);
       }
-      this.requestRender();
     });
 
     this.socketManager.on("playerDisconnected", (data) => {
@@ -182,8 +183,6 @@ export class BombermanGame {
       this.handleGameOver(data.leaderboard, data.winner);
     });
 
-    this.socketManager.on("gameReset", (msg) => this.handleGameReset(msg));
-
     this.socketManager.on("playerEliminated", (data) =>
       this.handlePlayerEliminated(data)
     );
@@ -191,7 +190,13 @@ export class BombermanGame {
 
   // ---------- MAP ----------
   generateMap() {
-    const gen = new BombermanMapGenerator(this.seed, this.mapWidth, this.mapHeight, 65, 30);
+    const gen = new BombermanMapGenerator(
+      this.seed,
+      this.mapWidth,
+      this.mapHeight,
+      65,
+      30
+    );
     const result = gen.generate();
     this.currentMap = result.map;
     this.hiddenPowerups = result.hiddenPowerups;
@@ -231,7 +236,6 @@ export class BombermanGame {
   handleInput() {
     const me = this.players.get(this.localPlayerId);
     if (!me || me.dead || me.lives <= 0) {
-      
       return;
     }
 
@@ -387,8 +391,9 @@ export class BombermanGame {
   // ---------- POWERUPS ----------
   checkPowerupCollection(player) {
     const g = player.getGridPosition();
-    if (g.y < 0 || g.y >= this.mapHeight || g.x < 0 || g.x >= this.mapWidth) return;
-    
+    if (g.y < 0 || g.y >= this.mapHeight || g.x < 0 || g.x >= this.mapWidth)
+      return;
+
     const t = this.currentMap[g.y][g.x];
     if (
       [
@@ -416,10 +421,11 @@ export class BombermanGame {
   placeBomb() {
     const me = this.players.get(this.localPlayerId);
     if (!me || me.dead || me.lives <= 0) return;
-    
+
     const g = me.getGridPosition();
-    if (g.y < 0 || g.y >= this.mapHeight || g.x < 0 || g.x >= this.mapWidth) return;
-    
+    if (g.y < 0 || g.y >= this.mapHeight || g.x < 0 || g.x >= this.mapWidth)
+      return;
+
     const maxBombs = 1 + me.powerups.bombs;
 
     let mine = 0;
@@ -485,6 +491,12 @@ export class BombermanGame {
 
     this.handleExplosionCells(cells);
     this.socketManager.sendBombExploded(bombId, cells);
+    this.players.forEach((p) => {
+      const g = p.getGridPosition();
+      if (g.x === x && g.y === y && p.isLocal) {
+        this.socketManager.sendPlayerDied();
+      }
+    });
     this.requestRender();
   }
 
@@ -504,12 +516,7 @@ export class BombermanGame {
 
   handleExplosionAt(x, y) {
     // player hits
-    this.players.forEach((p) => {
-      const g = p.getGridPosition();
-      if (g.x === x && g.y === y && p.isLocal) {
-        this.socketManager.sendPlayerDied();
-      }
-    });
+    console.log(this.players);
 
     const type = this.currentMap[y][x];
     if (type === GameConstants.CELL_TYPES.DESTRUCTIBLE) {
@@ -642,43 +649,17 @@ export class BombermanGame {
     wrap.appendChild(overlay);
   }
 
-  handleGameReset(message) {
-    const go = document.getElementById("gameOverOverlay");
-    if (go) go.remove();
-    const sp = document.getElementById("spectatorOverlay");
-    if (sp) sp.remove();
-
-    this.activeBombs.clear();
-    this.passThroughBombs.clear();
-
-    this.players.forEach((p) => {
-      p.lives = 3;
-      p.powerups = { bombs: 0, flames: 0, speed: 0 };
-      p.dead = false;
-      p.hasDamageFlash = false;
-      p.isInvincible = false;
-    });
-
-    this.inputHandler.enable();
-    this.generateMap();
-
-    if (!this.animationFrameId) this.gameLoop();
-
-    if (this.chatManager) this.chatManager.addSystemMessage(message);
-  }
-
   getRankIcon(rank) {
     const icons = { 1: "🥇", 2: "🥈", 3: "🥉", 4: "4️⃣" };
     return icons[rank] || rank;
   }
 
-  handlePlayerDeath(playerId) {
-    const p = this.players.get(playerId);
+  handlePlayerDeath(data) {
+    const p = this.players.get(data);
     if (p && p.lives > 0) {
       const took = p.takeDamage();
-      if (took && playerId === this.localPlayerId) {
-        this.socketManager.sendPlayerDied();
-      }
+      console.log(took);
+
       this.requestRender();
     }
   }

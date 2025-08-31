@@ -496,6 +496,8 @@ wss.on("connection", (ws) => {
 
         // --- PLAYER DEATH ---
         case "playerDied": {
+          console.log("ana f server db");
+          
           const roomId = clientRooms.get(ws);
           if (!roomId) return;
           const room = rooms.get(roomId);
@@ -504,7 +506,8 @@ wss.on("connection", (ws) => {
           const playerData = room.clients.get(ws);
           if (playerData) {
             playerData.lives = Math.max(0, playerData.lives - 1);
-
+            console.log(playerData.lives);
+            
             // If player is eliminated, mark them as spectator and record elimination order
             if (playerData.lives === 0 && !playerData.eliminationOrder) {
               playerData.isSpectator = true;

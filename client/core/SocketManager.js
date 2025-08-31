@@ -5,7 +5,7 @@ export class SocketManager {
     this.nickname = nickname;
     this.playerId = null; // Will be assigned by server
     this.eventHandlers = {};
-    this.ws = new WebSocket("ws://localhost:3000");
+    this.ws = new WebSocket("/");
 
     // When the socket opens, send join message to backend
     this.ws.onopen = () => {
@@ -103,6 +103,8 @@ export class SocketManager {
         break;
 
       case "playerDied":
+        console.log("ana f playerdied");
+        
         this.trigger("playerDied", data);
         break;
 
@@ -115,11 +117,7 @@ export class SocketManager {
           winner: data.winner,
         });
         break;
-
-      case "gameReset":
-        this.trigger("gameReset", data.message);
-        break;
-
+      
       case "returnToLobby":
         this.trigger("returnToLobby", data.message);
         break;

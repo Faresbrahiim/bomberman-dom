@@ -61,8 +61,9 @@ export class Player {
   }
 
   takeDamage() {
+    console.log("hi");
+    
     if (this.isInvincible || this.lives <= 0) return false;
-    this.lives--;
     this.isInvincible = true;
     this.hasDamageFlash = true;
 
