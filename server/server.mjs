@@ -167,8 +167,9 @@ class Room {
     }
   }
 
-  // --- CHECK GAME OVER ON DISCONNECT 
+  // --- CHECK GAME OVER ON DISCONNECT (NEW FUNCTION) ---
   checkGameOverOnDisconnect() {
+    // Only check during active game, not during countdown phases
     if (this.status !== "started") return;
 
     // Count remaining connected players with lives > 0
@@ -205,7 +206,7 @@ class Room {
         type: "gameOver",
         leaderboard: leaderboard,
         winner: leaderboard[0] || null,
-        reason: "disconnection", 
+        reason: "disconnection", // Add reason to distinguish from death-based game over
       });
 
       // Return to lobby after showing results
@@ -606,7 +607,20 @@ wss.on("connection", (ws) => {
           });
         }
 
-        // *** NEW: Check for game over after disconnection ***
+        // *** HANDLE COUNTDOWN INTERRUPTION ON DISCONNECT ***
+        if ((room.status === "countdown20" || room.status === "countdown10") && room.clients.size === 1) {
+          // Stop countdown if only 1 player remains during countdown
+          clearInterval(room.countdownTimer);
+          room.status = "waiting";
+          room.countdownSeconds = 0;
+          
+          broadcastToRoom(roomId, {
+            type: "countdownCanceled",
+            message: "Countdown canceled - need at least 2 players to start"
+          });
+        }
+
+        // *** CHECK FOR GAME OVER DURING ACTIVE GAME ***
         room.checkGameOverOnDisconnect();
 
         // Clean up empty rooms
