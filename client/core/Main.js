@@ -242,8 +242,11 @@ export class Main {
     const chatContainer = renderedElement.querySelector("#chatContainer");
     this.chatManager = new ChatManager(chatContainer, this.socketManager);
 
-    this.game = new BombermanGame(this.socketManager, gameData);
+    const gameMapContainer = renderedElement.querySelector("#gameMapContainer");
+
+    this.game = new BombermanGame(this.socketManager, gameData, gameMapContainer);
     this.game.init();
+
 
     console.log("Game initialized with data:", gameData);
   }
