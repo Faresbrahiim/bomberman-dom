@@ -223,16 +223,16 @@ export class BombermanGame {
     this.socketManager.on("playerDied", (data) => {
       const player = this.players.get(data.playerId);
       if (player) {
-        // Update player lives from server data
-        this.handlePlayerDeath(player.playerId);
+        // تحديث حياة اللاعب من البيانات القادمة من الخادم
         player.lives = data.lives;
+        this.handlePlayerDeath(data.playerId); // تمرير معرف اللاعب فقط
 
-        // Handle local player elimination
+        // معالجة إقصاء اللاعب المحلي
         if (data.playerId === this.localPlayerId && data.lives === 0) {
           this.enableSpectatorMode();
         }
 
-        // Update UI for all players
+        // تحديث واجهة المستخدم لجميع اللاعبين
         this.ui.updateAllPlayersStatus(this.players);
       }
     });
@@ -564,52 +564,50 @@ export class BombermanGame {
   }
 
   handleExplosionAt(x, y) {
-    // player hits
-    console.log(this.players);
-
-    const type = this.currentMap[y][x];
-    this.players.forEach((p) => {
-      const g = p.getGridPosition();
-      if (g.x === x && g.y === y && p.isLocal && !this.takeDamage) {
-        this.takeDamage = true;
+  const type = this.currentMap[y][x];
+  
+  this.players.forEach((p) => {
+    const g = p.getGridPosition();
+    if (g.x === x && g.y === y && !p.isInvincible && !p.dead) {
+      if (p.isLocal) {
         this.socketManager.sendPlayerDied();
       }
-    });
-    if (type === GameConstants.CELL_TYPES.DESTRUCTIBLE) {
-      this.destroyWall(x, y);
-    } else if (type === GameConstants.CELL_TYPES.BOMB) {
-      const chain = [...this.activeBombs.values()].find(
-        (b) => b.x === x && b.y === y && !b.exploded
-      );
-      if (chain)
-        setTimeout(() => {
-          if (this.activeBombs.has(chain.bombId) && !chain.exploded) {
-            this.explodeBomb(chain.x, chain.y, chain.bombId);
-          }
-        }, 100);
+      p.takeDamage();
     }
-
-    // Visual flame effect through framework
-    this.createFlameEffect(x, y);
+  });
+  
+  if (type === GameConstants.CELL_TYPES.DESTRUCTIBLE) {
+    this.destroyWall(x, y);
+  } else if (type === GameConstants.CELL_TYPES.BOMB) {
+    const chain = [...this.activeBombs.values()].find(
+      (b) => b.x === x && b.y === y && !b.exploded
+    );
+    if (chain) {
+      setTimeout(() => {
+        if (this.activeBombs.has(chain.bombId) && !chain.exploded) {
+          this.explodeBomb(chain.x, chain.y, chain.bombId);
+        }
+      }, 100);
+    }
   }
+
+  this.createFlameEffect(x, y);
+}
 
   // Create flame effect using framework system
   createFlameEffect(x, y) {
-    setTimeout(() => {
-      // Find the cell element through the framework
-      const gameContainer = this.getGameMapContainer();
-      if (gameContainer) {
-        const cell = gameContainer.querySelector(
-          `[data-x="${x}"][data-y="${y}"]`
-        );
-        if (cell) {
-          cell.classList.add("flame");
-          setTimeout(() => {
-            cell.classList.remove("flame");
-          }, GameConstants.FLAME_DURATION);
-        }
+    const gameContainer = this.getGameMapContainer();
+    if (gameContainer) {
+      const cell = gameContainer.querySelector(
+        `[data-x="${x}"][data-y="${y}"]`
+      );
+      if (cell) {
+        cell.classList.add("flame");
+        setTimeout(() => {
+          cell.classList.remove("flame");
+        }, GameConstants.FLAME_DURATION);
       }
-    }, 50);
+    }
   }
 
   destroyWall(x, y) {
@@ -712,12 +710,15 @@ export class BombermanGame {
     return icons[rank] || rank;
   }
 
-  handlePlayerDeath(data) {
-    const p = this.players.get(data);
-    if (p && p.lives > 0) {
-      const took = p.takeDamage();
-      console.log(took);
-      this.requestRender();
+ handlePlayerDeath(playerId) {
+  const p = this.players.get(playerId);
+  if (p && p.lives > 0) {
+    const tookDamage = p.takeDamage();
+    this.requestRender();
+    
+    if (p.lives <= 0) {
+      p.dead = true;
     }
   }
+}
 }
