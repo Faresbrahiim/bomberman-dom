@@ -146,10 +146,14 @@ export class Main {
       new VNode("div", { id: "chatContainer", class: "chat-container" }),
     ]);
     this.container.innerHTML = "";
-    this.container.appendChild(vnode.render(vnode));
+    const rendered = vnode.render();
+    this.container.appendChild(rendered);
+
+    // Store reference to the countdown container
+    this.countdownContainer = rendered.querySelector("#countdown");
 
     this.chatManager = new ChatManager(
-      document.getElementById("chatContainer"),
+      rendered.querySelector("#chatContainer"),
       this.socketManager
     );
   }
@@ -173,8 +177,7 @@ export class Main {
   }
 
   renderCountdown(seconds) {
-    const countdownContainer = document.getElementById("countdown"); // match the VNode id
-    if (!countdownContainer) return;
+    if (!this.countdownContainer) return; // safeguard
 
     const countdownVNode = new VNode(
       "div",
@@ -188,9 +191,10 @@ export class Main {
       ]
     );
 
-    updateElement(countdownContainer, countdownVNode, this.oldCountdownVNode);
+    updateElement(this.countdownContainer, countdownVNode, this.oldCountdownVNode);
     this.oldCountdownVNode = countdownVNode;
   }
+
 
   renderGame(gameData) {
     this.container.innerHTML = "";
