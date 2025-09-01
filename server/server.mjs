@@ -167,6 +167,54 @@ class Room {
     }
   }
 
+  // --- CHECK GAME OVER ON DISCONNECT 
+  checkGameOverOnDisconnect() {
+    if (this.status !== "started") return;
+
+    // Count remaining connected players with lives > 0
+    const aliveConnectedPlayers = [];
+    for (const [ws, playerData] of this.clients.entries()) {
+      if (playerData.lives > 0) {
+        aliveConnectedPlayers.push(playerData);
+      }
+    }
+
+    // If only 1 or 0 players left, end the game
+    if (aliveConnectedPlayers.length <= 1) {
+      this.status = "finished";
+
+      // Mark remaining player as winner if they exist
+      if (aliveConnectedPlayers.length === 1) {
+        const winner = aliveConnectedPlayers[0];
+        if (!winner.eliminationOrder) {
+          winner.eliminationOrder = this.eliminationCount++;
+        }
+      }
+
+      // Create leaderboard from remaining connected players
+      const leaderboard = Array.from(this.clients.values())
+        .sort((a, b) => (b.eliminationOrder || 0) - (a.eliminationOrder || 0))
+        .map((player, index) => ({
+          rank: index + 1,
+          playerId: player.playerId,
+          nickname: player.nickname,
+          lives: player.lives,
+        }));
+
+      broadcastToRoom(this.id, {
+        type: "gameOver",
+        leaderboard: leaderboard,
+        winner: leaderboard[0] || null,
+        reason: "disconnection", 
+      });
+
+      // Return to lobby after showing results
+      setTimeout(() => {
+        this.returnToLobby();
+      }, 5000);
+    }
+  }
+
   // --- RETURN TO LOBBY AFTER GAME ---
   returnToLobby() {
     this.status = "waiting";
@@ -557,6 +605,9 @@ wss.on("connection", (ws) => {
             playerId: playerData.playerId,
           });
         }
+
+        // *** NEW: Check for game over after disconnection ***
+        room.checkGameOverOnDisconnect();
 
         // Clean up empty rooms
         if (room.clients.size === 0) {
