@@ -1,12 +1,28 @@
+// =============================================================================
+// STEP 1: FILE HEADER COMMENT (EXECUTED FIRST - FILE IDENTIFICATION)
+// =============================================================================
 // client/core/SocketManager.js
 
+// =============================================================================
+// STEP 2: CLASS DEFINITION (EXECUTED SECOND - WEBSOCKET COMMUNICATION MANAGER)
+// =============================================================================
 export class SocketManager {
+  // =============================================================================
+  // STEP 3: CONSTRUCTOR (EXECUTED THIRD - WEBSOCKET CONNECTION INITIALIZATION)
+  // =============================================================================
   constructor(nickname) {
+    // Store user identification data
     this.nickname = nickname;
     this.playerId = null; // Will be assigned by server
+    
+    // Initialize event handling system
     this.eventHandlers = {};
+    
+    // Create WebSocket connection to server
     this.ws = new WebSocket("/");
 
+    // Setup WebSocket event handlers for connection lifecycle
+    
     // When the socket opens, send join message to backend
     this.ws.onopen = () => {
       this.send({ type: "join", nickname: this.nickname });
@@ -19,15 +35,21 @@ export class SocketManager {
       this.handleMessage(data);
     };
 
+    // Handle WebSocket errors
     this.ws.onerror = (error) => {
       console.error("WebSocket error:", error);
     };
 
+    // Handle WebSocket connection closure
     this.ws.onclose = () => {
       console.log("WebSocket connection closed");
     };
   }
 
+  // =============================================================================
+  // STEP 4: EVENT SYSTEM SETUP (EXECUTED ON DEMAND - EVENT REGISTRATION)
+  // =============================================================================
+  
   // Register event listeners
   on(eventName, callback) {
     this.eventHandlers[eventName] = callback;
@@ -40,6 +62,10 @@ export class SocketManager {
     }
   }
 
+  // =============================================================================
+  // STEP 5: OUTBOUND COMMUNICATION (EXECUTED ON USER ACTIONS - CLIENT TO SERVER)
+  // =============================================================================
+  
   // Send data to server
   send(data) {
     if (this.ws.readyState === WebSocket.OPEN) {
@@ -47,9 +73,14 @@ export class SocketManager {
     }
   }
 
+  // =============================================================================
+  // STEP 6: INBOUND MESSAGE HANDLING (EXECUTED ON SERVER MESSAGES - SERVER TO CLIENT)
+  // =============================================================================
+  
   // Handle incoming messages and trigger appropriate events
   handleMessage(data) {
     switch (data.type) {
+      // Lobby and connection events
       case "playerCount":
         this.trigger("playerCountUpdate", data.count);
         break;
@@ -81,7 +112,7 @@ export class SocketManager {
         this.trigger("invalidNickname", data.reason);
         break;
 
-      // Game events
+      // Game events - real-time gameplay synchronization
       case "playerMoved":
         this.trigger("playerMoved", data);
         break;
@@ -109,6 +140,7 @@ export class SocketManager {
       case "playerDisconnected":
         this.trigger("playerDisconnected", data);
         break;
+        
       case "gameOver":
         this.trigger("gameOver", {
           leaderboard: data.leaderboard,
@@ -132,16 +164,22 @@ export class SocketManager {
         });
         break;
 
+      // Unhandled message types logging
       default:
         console.warn("Unhandled message type:", data.type);
     }
   }
 
-  // Game-specific message senders
+  // =============================================================================
+  // STEP 7: GAME-SPECIFIC SENDERS (EXECUTED ON GAME ACTIONS - SPECIALIZED COMMUNICATION)
+  // =============================================================================
+  
+  // Chat message transmission
   sendChatMessage(message) {
     this.send({ type: "chat", message });
   }
 
+  // Player movement synchronization
   sendPlayerMove(position, gridPosition, movement) {
     this.send({
       type: "playerMove",
@@ -151,6 +189,7 @@ export class SocketManager {
     });
   }
 
+  // Bomb placement notification
   sendPlaceBomb(position) {
     this.send({
       type: "placeBomb",
@@ -158,6 +197,7 @@ export class SocketManager {
     });
   }
 
+  // Bomb explosion event transmission
   sendBombExploded(bombId, explosionCells) {
     this.send({
       type: "bombExploded",
@@ -166,6 +206,7 @@ export class SocketManager {
     });
   }
 
+  // Wall destruction event notification
   sendWallDestroyed(position, powerupRevealed) {
     this.send({
       type: "wallDestroyed",
@@ -174,6 +215,7 @@ export class SocketManager {
     });
   }
 
+  // Powerup collection event transmission
   sendPowerupCollected(position, powerupType) {
     this.send({
       type: "powerupCollected",
@@ -183,6 +225,7 @@ export class SocketManager {
     });
   }
 
+  // Player death notification
   sendPlayerDied() {
     this.send({
       type: "playerDied",
