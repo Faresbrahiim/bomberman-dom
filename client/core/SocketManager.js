@@ -6,6 +6,7 @@ export class SocketManager {
     this.playerId = null; // Will be assigned by server
     this.eventHandlers = {};
     this.ws = new WebSocket("/");
+    this.lastBombExplosions = new Map();
 
     // When the socket opens, send join message to backend
     this.ws.onopen = () => {
@@ -63,7 +64,6 @@ export class SocketManager {
         break;
 
       case "gameStart":
-
         this.trigger("gameStart", { seed: data.seed, players: data.players });
         break;
 
@@ -91,7 +91,14 @@ export class SocketManager {
         break;
 
       case "bombExploded":
-        this.trigger("bombExploded", data);
+        const explosionKey = `${data.bombId}_${Date.now()}`;
+        if (
+          !this.lastBombExplosions.has(data.bombId) ||
+          Date.now() - this.lastBombExplosions.get(data.bombId) > 1000
+        ) {
+          this.lastBombExplosions.set(data.bombId, Date.now());
+          this.trigger("bombExploded", data);
+        }
         break;
 
       case "wallDestroyed":
@@ -104,7 +111,7 @@ export class SocketManager {
 
       case "playerDied":
         console.log("ana f playerdied");
-        
+
         this.trigger("playerDied", data);
         break;
 
@@ -117,7 +124,7 @@ export class SocketManager {
           winner: data.winner,
         });
         break;
-      
+
       case "returnToLobby":
         this.trigger("returnToLobby", data.message);
         break;

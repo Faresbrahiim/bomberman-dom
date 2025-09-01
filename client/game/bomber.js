@@ -31,7 +31,8 @@ export class BombermanGame {
 
     // overlay management
     this.overlayElements = new Map(); // Track overlays using framework
-
+    this.activeFlames = new Set();
+    this.processedExplosions = new Set();
     // players from lobby/gameData
     this.initializePlayers(gameData.players);
 
@@ -203,6 +204,7 @@ export class BombermanGame {
     });
 
     this.socketManager.on("bombExploded", (data) => {
+      console.log("websocket");
       this.handleBombExplosion(data.bombId, data.explosionCells);
     });
 
@@ -224,7 +226,7 @@ export class BombermanGame {
       const player = this.players.get(data.playerId);
       if (player) {
         player.lives = data.lives;
-        this.handlePlayerDeath(data.playerId); 
+        this.handlePlayerDeath(data.playerId);
 
         if (data.playerId === this.localPlayerId && data.lives === 0) {
           this.enableSpectatorMode();
@@ -545,54 +547,81 @@ export class BombermanGame {
     this.requestRender();
   }
 
-  handleBombExplosion(bombId, cells) {
-    const b = this.activeBombs.get(bombId);
-    if (b) {
-      b.explode();
-      this.activeBombs.delete(bombId);
-    }
-    this.handleExplosionCells(cells);
-    this.takeDamage = false;
-    this.requestRender();
+handleBombExplosion(bombId, cells) {
+  if (this.processedExplosions.has(bombId)) {
+    return;
   }
-
-  handleExplosionCells(cells) {
-    cells.forEach((c) => this.handleExplosionAt(c.x, c.y));
-  }
-
-  handleExplosionAt(x, y) {
-  const type = this.currentMap[y][x];
   
-  this.players.forEach((p) => {
-    const g = p.getGridPosition();
-    if (g.x === x && g.y === y && !p.isInvincible && !p.dead) {
-      if (p.isLocal) {
-        this.socketManager.sendPlayerDied();
-      }
-      p.takeDamage();
+  this.processedExplosions.add(bombId);
+  
+  const b = this.activeBombs.get(bombId);
+  if (b) {
+    b.explode();
+    this.activeBombs.delete(bombId);
+  }
+  
+  this.handleExplosionCells(cells);
+  this.takeDamage = false;
+  this.requestRender();
+  
+  setTimeout(() => {
+    this.processedExplosions.delete(bombId);
+  }, 5000); 
+}
+
+ handleExplosionCells(cells) {
+  const uniqueCells = new Set();
+  
+  cells.forEach((c) => {
+    const cellKey = `${c.x},${c.y}`;
+    if (!uniqueCells.has(cellKey)) {
+      uniqueCells.add(cellKey);
+      this.handleExplosionAt(c.x, c.y);
     }
   });
-  
-  if (type === GameConstants.CELL_TYPES.DESTRUCTIBLE) {
-    this.destroyWall(x, y);
-  } else if (type === GameConstants.CELL_TYPES.BOMB) {
-    const chain = [...this.activeBombs.values()].find(
-      (b) => b.x === x && b.y === y && !b.exploded
-    );
-    if (chain) {
-      setTimeout(() => {
-        if (this.activeBombs.has(chain.bombId) && !chain.exploded) {
-          this.explodeBomb(chain.x, chain.y, chain.bombId);
-        }
-      }, 100);
-    }
-  }
-
-  this.createFlameEffect(x, y);
 }
+
+  handleExplosionAt(x, y) {
+    const type = this.currentMap[y][x];
+
+    this.players.forEach((p) => {
+      const g = p.getGridPosition();
+      if (g.x === x && g.y === y && !p.isInvincible && !p.dead) {
+        if (p.isLocal) {
+          this.socketManager.sendPlayerDied();
+        }
+        p.takeDamage();
+      }
+    });
+
+    if (type === GameConstants.CELL_TYPES.DESTRUCTIBLE) {
+      this.destroyWall(x, y);
+    } else if (type === GameConstants.CELL_TYPES.BOMB) {
+      const chain = [...this.activeBombs.values()].find(
+        (b) => b.x === x && b.y === y && !b.exploded
+      );
+      if (chain) {
+        setTimeout(() => {
+          if (this.activeBombs.has(chain.bombId) && !chain.exploded) {
+            this.explodeBomb(chain.x, chain.y, chain.bombId);
+          }
+        }, 100);
+      }
+    }
+
+    this.createFlameEffect(x, y);
+  }
 
   // Create flame effect using framework system
   createFlameEffect(x, y) {
+    const cellKey = `${x},${y}`;
+
+    if (this.activeFlames.has(cellKey)) {
+      return;
+    }
+
+    this.activeFlames.add(cellKey);
+
     const gameContainer = this.getGameMapContainer();
     if (gameContainer) {
       const cell = gameContainer.querySelector(
@@ -602,6 +631,7 @@ export class BombermanGame {
         cell.classList.add("flame");
         setTimeout(() => {
           cell.classList.remove("flame");
+          this.activeFlames.delete(cellKey);
         }, GameConstants.FLAME_DURATION);
       }
     }
@@ -707,15 +737,15 @@ export class BombermanGame {
     return icons[rank] || rank;
   }
 
- handlePlayerDeath(playerId) {
-  const p = this.players.get(playerId);
-  if (p && p.lives > 0) {
-    const tookDamage = p.takeDamage();
-    this.requestRender();
-    
-    if (p.lives <= 0) {
-      p.dead = true;
+  handlePlayerDeath(playerId) {
+    const p = this.players.get(playerId);
+    if (p && p.lives > 0) {
+      const tookDamage = p.takeDamage();
+      this.requestRender();
+
+      if (p.lives <= 0) {
+        p.dead = true;
+      }
     }
   }
-}
 }
