@@ -149,9 +149,10 @@ export class Main {
     const rendered = vnode.render();
     this.container.appendChild(rendered);
 
-    // Store reference to the countdown container
-    this.countdownContainer = rendered.querySelector("#countdown");
+    // Store reference to the player count element
+    this.playerCountEl = rendered.querySelector("#playerCount");
 
+    this.countdownContainer = rendered.querySelector("#countdown");
     this.chatManager = new ChatManager(
       rendered.querySelector("#chatContainer"),
       this.socketManager
@@ -159,22 +160,23 @@ export class Main {
   }
 
   updatePlayerCount(count) {
-    const el = document.getElementById("playerCount");
-    if (el) {
-      el.textContent = `Players in lobby: ${count}`;
+    if (!this.playerCountEl) return;
 
-      if (count === 1) {
-        el.textContent += " (Need at least 2 players to start)";
-      } else if (count >= 2 && count < 4) {
-        if (this.countdownSeconds === null) {
-          el.textContent +=
-            " (Game will start in 20 seconds, or when 4 players join)";
-        }
-      } else if (count === 4) {
-        el.textContent += " (Game starting in 10 seconds!)";
+    let text = `Players in lobby: ${count}`;
+
+    if (count === 1) {
+      text += " (Need at least 2 players to start)";
+    } else if (count >= 2 && count < 4) {
+      if (this.countdownSeconds === null) {
+        text += " (Game will start in 20 seconds, or when 4 players join)";
       }
+    } else if (count === 4) {
+      text += " (Game starting in 10 seconds!)";
     }
+
+    this.playerCountEl.textContent = text;
   }
+
 
   renderCountdown(seconds) {
     if (!this.countdownContainer) return; // safeguard
