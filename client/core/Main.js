@@ -210,10 +210,11 @@ renderGame(gameData) {
   ]);
 
   // Render the VNode to actual DOM and append to container
-  this.container.appendChild(gameLayout.render());
+  const renderedElement = gameLayout.render();
+  this.container.appendChild(renderedElement);
 
-  // Initialize managers and game
-  const chatContainer = document.getElementById("chatContainer");
+  // Get chat container from the rendered element instead of DOM query
+  const chatContainer = renderedElement.querySelector("#chatContainer");
   this.chatManager = new ChatManager(chatContainer, this.socketManager);
 
   this.game = new BombermanGame(this.socketManager, gameData);
