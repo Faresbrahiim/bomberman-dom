@@ -491,12 +491,6 @@ export class BombermanGame {
 
     this.handleExplosionCells(cells);
     this.socketManager.sendBombExploded(bombId, cells);
-    // this.players.forEach((p) => {
-    //   const g = p.getGridPosition();
-    //   if (g.x === x && g.y === y && p.isLocal) {
-    //     this.socketManager.sendPlayerDied();
-    //   }
-    // });
     this.requestRender();
   }
 
