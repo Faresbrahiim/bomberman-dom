@@ -586,14 +586,9 @@ export class BombermanGame {
 
   showSpectatorMessage() {
     const wrap = document.getElementById("gameMapContainer");
-    if (!wrap || document.getElementById("spectatorOverlay")) return;
-    const overlay = document.createElement("div");
-    overlay.id = "spectatorOverlay";
-    overlay.className = "spectator-overlay";
-    overlay.innerHTML = `<div class="spectator-message">
-      <h3>SPECTATOR MODE</h3><p>You have been eliminated. Watch the remaining players!</p>
-    </div>`;
-    wrap.appendChild(overlay);
+    if (!wrap) return;
+    const spectate = document.getElementById("spectatorOverlay")
+    spectate.style.display = "flex"
   }
 
   handlePlayerEliminated(data) {
@@ -621,40 +616,7 @@ export class BombermanGame {
     const wrap = document.getElementById("gameMapContainer");
     if (!wrap) return;
     const old = document.getElementById("gameOverOverlay");
-    if (old) old.remove();
 
-    const overlay = document.createElement("div");
-    overlay.id = "gameOverOverlay";
-    overlay.className = "game-over-overlay";
-
-    const content = document.createElement("div");
-    content.className = "game-over-content";
-    content.innerHTML = `
-      <h1 class="game-over-title">Game Over</h1>
-      <h2 class="game-over-winner">${
-        winner ? `${winner.nickname} Wins!` : "No Winner"
-      }</h2>
-      <h3 class="leaderboard-title">Final Rankings</h3>
-      <div class="leaderboard-list">
-        ${leaderboard
-          .map(
-            (p) => `
-          <div class="leaderboard-row rank-${p.rank}">
-            <span class="rank">${this.getRankIcon(p.rank)} ${
-              p.rank
-            }${this.getOrdinalSuffix(p.rank)}</span>
-            <span class="nickname">${p.nickname}</span>
-            <span class="lives">${
-              p.lives > 0 ? ` (${p.lives} lives)` : " (Eliminated)"
-            }</span>
-          </div>`
-          )
-          .join("")}
-      </div>
-      <p class="return-lobby-message">Press Ctrl + R to restart GAME</p>
-    `;
-    overlay.appendChild(content);
-    wrap.appendChild(overlay);
   }
 
   getRankIcon(rank) {
