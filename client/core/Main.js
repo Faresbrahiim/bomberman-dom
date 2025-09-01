@@ -38,20 +38,26 @@ export class Main {
       ),
       new VNode("p", { id: "errorMsg", class: "error-msg" }, []),
     ]);
-    this.container.innerHTML = "";
-    this.container.appendChild(vnode.render(vnode));
 
-    // Focus on input and handle enter key
-    const input = document.getElementById("nicknameInput");
-    if (input) {
-      input.focus();
-      input.addEventListener("keypress", (e) => {
+    this.container.innerHTML = "";
+    const rendered = vnode.render();
+    this.container.appendChild(rendered);
+
+    // Store references to input and error message
+    this.nicknameInput = rendered.querySelector("#nicknameInput");
+    this.errorMsgEl = rendered.querySelector("#errorMsg");
+
+    // Focus input and handle Enter key
+    if (this.nicknameInput) {
+      this.nicknameInput.focus();
+      this.nicknameInput.addEventListener("keypress", (e) => {
         if (e.key === "Enter") {
           this.handleJoin();
         }
       });
     }
   }
+
 
   handleJoin() {
     const input = document.getElementById("nicknameInput");
