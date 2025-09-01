@@ -21,85 +21,6 @@ body {
   width: 100vw;
 }
 
-/* ========== Nickname (Join) Screen ========== */
-.nickname-form {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-width: 320px;
-  margin: 40px auto;
-  padding: 20px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.nickname-input {
-  padding: 8px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  font-size: 14px;
-}
-
-.join-btn {
-  padding: 8px 12px;
-  border: none;
-  border-radius: 6px;
-  background-color: #667eea;
-  color: #fff;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-
-.join-btn:hover {
-  background-color: #5a67d8;
-}
-
-.error-msg {
-  color: #e11d48;
-  font-size: 14px;
-}
-
-/* ========== Lobby ========== */
-.lobby {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-  max-width: 720px;
-  margin: 40px auto;
-  padding: 20px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  border:  solid , black , 6px;
-}
-
-.lobby h2 {
-  font-size: 20px;
-  font-weight: 600;
-  color: #222;
-}
-
-.player-count {
-  font-size: 14px;
-  color: #444;
-}
-
-.countdown {
-  margin-top: 4px;
-}
-
-.countdown-timer,
-.countdown-wait {
-  color: #ff6600;
-  font-weight: 700;
-}
-
-.countdown-start {
-  color: #00aa00;
-  font-weight: 700;
-}
-
 .rules-box {
   margin-top: 10px;
   padding: 12px;
@@ -131,7 +52,7 @@ body {
   border-radius: 8px;
   background: #fafafa;
   overflow: hidden;
-  border : solid, black, 6px;
+  border: solid, black, 6px;
 }
 
 .chat-header {
@@ -212,7 +133,7 @@ body {
   gap: 10px;
   /* background: #fff; */
   background-image: url(media/background.jpg);
-  border:  black , solid , 6px;
+  border: black, solid, 6px;
   padding: 10px;
   border-radius: 8px;
 }
@@ -242,9 +163,10 @@ body {
   height: 100%;
 }
 
-#chatContainer{
-  border : solid, black, 6px;
+#chatContainer {
+  border: solid, black, 6px;
 }
+
 /* ========== Map Grid & Tiles ========== */
 .map {
   display: grid;
@@ -948,7 +870,7 @@ body {
   background-size: 32px 32px;
   overflow: hidden;
   padding: 10px;
-  border: solid , black , 6px;
+  border: solid, black, 6px;
 }
 
 .players-container {
@@ -1143,7 +1065,8 @@ body {
   position: relative;
   top: 0;
   left: 0;
-  transform: translate(0%, 337%) rotate(-15deg);;
+  transform: translate(0%, 337%) rotate(-15deg);
+  ;
   background: rgba(231, 76, 60, 0.9);
   color: white;
   padding: 5px 15px;
@@ -1198,4 +1121,210 @@ body {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+}
+
+/* Nickname form container */
+.nickname-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  /* full screen */
+  background: linear-gradient(135deg, #7581b9, #ffffff);
+  font-family: 'Press Start 2P', cursive;
+  /* retro pixel font */
+  color: #fff;
+  text-shadow: 2px 2px #000;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+/* Title */
+.nickname-form h2 {
+  font-size: 2rem;
+  margin-bottom: 20px;
+  color: #ffcc00;
+  text-shadow: 2px 2px #000, 0 0 5px #fff;
+}
+
+/* Input field */
+.nickname-input {
+  width: 250px;
+  padding: 10px 15px;
+  margin-bottom: 15px;
+  border: 2px solid #ffcc00;
+  border-radius: 8px;
+  background-color: #1a1a2e;
+  color: #fff;
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.8rem;
+  outline: none;
+  text-align: center;
+  transition: all 0.2s ease-in-out;
+}
+
+.nickname-input:focus {
+  border-color: #00ffcc;
+  box-shadow: 0 0 10px #00ffcc;
+}
+
+/* Join button */
+.join-btn {
+  padding: 10px 20px;
+  font-size: 0.8rem;
+  font-family: 'Press Start 2P', cursive;
+  background-color: #ff3333;
+  color: #fff;
+  border: 2px solid #fff;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.join-btn:hover {
+  background-color: #ffcc00;
+  color: #000;
+  transform: scale(1.05);
+}
+
+/* Error message */
+.error-msg {
+  margin-top: 10px;
+  font-size: 0.7rem;
+  color: #ff4444;
+  text-align: center;
+  text-shadow: 1px 1px #000;
+}
+
+/* Optional: mobile responsive */
+@media (max-width: 500px) {
+  .nickname-input {
+    width: 80%;
+  }
+
+  .join-btn {
+    width: 80%;
+    padding: 12px 0;
+  }
+}
+
+
+/* Lobby container */
+.lobby {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 100vh;
+  padding: 40px 20px;
+  background: linear-gradient(135deg, #1a1a2e, #3a3a6e);
+  /* darker Bomberman vibe */
+  font-family: 'Press Start 2P', cursive;
+  color: #fff;
+  text-shadow: 1px 1px #000;
+}
+
+/* Welcome title */
+.lobby h2 {
+  font-size: 2rem;
+  color: #ffcc00;
+  margin-bottom: 10px;
+  text-shadow: 2px 2px #000, 0 0 5px #fff;
+}
+
+/* Waiting text */
+.lobby p {
+  font-size: 0.9rem;
+  margin: 5px 0;
+  text-align: center;
+}
+
+/* Player count */
+.player-count {
+  font-size: 0.8rem;
+  color: #00ffcc;
+  margin-bottom: 20px;
+  text-shadow: 1px 1px #000;
+}
+
+/* Countdown container */
+.countdown {
+  font-size: 1rem;
+  color: #ff4444;
+  margin-bottom: 25px;
+  text-align: center;
+  text-shadow: 1px 1px #000;
+}
+
+/* Countdown timers */
+.countdown-timer {
+  font-size: 1.2rem;
+  color: #ffcc00;
+}
+
+.countdown-start {
+  font-size: 1.5rem;
+  color: #ff3333;
+  text-shadow: 2px 2px #000, 0 0 10px #fff;
+  animation: blink 1s infinite;
+}
+
+/* Rules box */
+.rules-box {
+  width: 100%;
+  max-width: 400px;
+  background-color: rgba(0, 0, 0, 0.6);
+  border: 2px solid #ffcc00;
+  border-radius: 10px;
+  padding: 15px 20px;
+  margin-bottom: 30px;
+  text-align: left;
+}
+
+.rules-box h3 {
+  font-size: 1rem;
+  margin-bottom: 10px;
+  color: #ffcc00;
+}
+
+.rules-box ul {
+  padding-left: 20px;
+}
+
+.rules-box li {
+  font-size: 0.7rem;
+  margin-bottom: 5px;
+  color: #fff;
+}
+
+/* Blink animation for countdown start */
+@keyframes blink {
+
+  0%,
+  50%,
+  100% {
+    opacity: 1;
+  }
+
+  25%,
+  75% {
+    opacity: 0;
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 500px) {
+  .rules-box {
+    max-width: 90%;
+    padding: 10px 15px;
+  }
+
+  .lobby h2 {
+    font-size: 1.5rem;
+  }
+
+  .countdown {
+    font-size: 0.9rem;
+  }
 }

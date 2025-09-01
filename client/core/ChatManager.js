@@ -12,8 +12,6 @@ export class ChatManager {
       { messages: [] }
     );
     this.vdom.mount();
-
-    this.setupEventListeners();
   }
 
   render(state, setState) {

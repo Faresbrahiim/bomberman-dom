@@ -206,7 +206,7 @@ class Room {
 function start20SecCountdown(room) {
   if (room.status !== "waiting" && room.status !== "countdown20") return;
   room.status = "countdown20";
-  room.countdownSeconds = 5;
+  room.countdownSeconds = 20;
 
   room.countdownTimer = setInterval(() => {
     room.countdownSeconds--;
@@ -230,7 +230,7 @@ function start20SecCountdown(room) {
 // --- 10-SECOND COUNTDOWN (GAME STARTING SOON) ---
 function start10SecCountdown(room) {
   room.status = "countdown10";
-  room.countdownSeconds = 1;
+  room.countdownSeconds = 10;
 
   room.countdownTimer = setInterval(() => {
     room.countdownSeconds--;
