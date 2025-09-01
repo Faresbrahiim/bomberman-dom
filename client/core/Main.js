@@ -258,54 +258,7 @@ export class Main {
         new VNode(
           "div",
           { id: "gameMapContainer", class: "map-container" },
-          this.game
-            ? [
-                this.game.render(),
-                new VNode("div", { class: "spectator-message" , style:"display:none;" }, [
-                  new VNode("h3", {}, ["SPECTATOR MODE"]),
-                  new VNode("p", {}, [
-                    "You have been eliminated. Watch the remaining players!",
-                  ]),
-                ]),
-                new VNode("div", { class: "game-over-content", style:"display:none;" }, [
-                  new VNode("h1", { class: "game-over-title" }, ["Game Over"]),
-                  new VNode("h2", { class: "game-over-winner" }, [
-                    winner ? `${winner.nickname}` : "No Winner",
-                  ]),
-                  new VNode("h3", { class: "leaderboard-title" }, [
-                    "Final Rankings",
-                  ]),
-                  new VNode("div", { class: "leaderboard-list" }, [
-                    leaderboard.map((p) => {
-                      new VNode(
-                        "div",
-                        { class: `leaderboard-row rank-${p.rank}` },
-                        [
-                          new VNode("span", { class: "rank" }, [
-                            `${this.getRankIcon(p.rank)} ${
-                              p.rank
-                            }${this.getOrdinalSuffix(p.rank)}`,
-                          ]),
-                          new VNode("span", { class: "nickname" }, [
-                            `${p.nickname}`,
-                          ]),
-                          new VNode("span", { class: "lives" }, [
-                            `${
-                              p.lives > 0
-                                ? ` (${p.lives} lives)`
-                                : " (Eliminated)"
-                            }`,
-                          ]),
-                        ]
-                      );
-                    }),
-                  ]),
-                  new VNode("p", { class: "return-lobby-message" }, [
-                    "Press Ctrl + R to restart GAME",
-                  ]),
-                ]),
-              ]
-            : []
+          this.game ? [this.game.render()] : []
         ),
       ]),
     ]);
