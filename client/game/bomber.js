@@ -4,7 +4,8 @@ import { InputHandler } from "./input.js";
 import { GameUI } from "./gameUI.js";
 import { Player } from "./Player.js";
 import { Bomb } from "./Bomb.js";
-
+import { VNode } from "../framework/vdom.js";
+import { VDOMManager } from "../framework/VDOMmanager.js";
 // Main multiplayer game class
 export class BombermanGame {
   constructor(socketManager, gameData) {
@@ -22,6 +23,7 @@ export class BombermanGame {
     this.mapWidth = 15;
     this.mapHeight = 11;
     this.animationFrameId = null;
+    this.vdomManager = null; // Will hold instance
 
     // Initialize players from game data
     this.initializePlayers(gameData.players);
@@ -49,8 +51,19 @@ export class BombermanGame {
   init() {
     this.generateMap();
     this.createPlayerElements();
+
+    // Setup VDOM manager for overlays
+    const container = document.getElementById("gameMapContainer");
+    this.vdomManager = new VDOMManager(
+      container,
+      (state, setState) => this.renderUI(state, setState),
+      { gameOver: false, leaderboard: [], winner: null, spectator: false }
+    );
+    this.vdomManager.mount();
+
     this.gameLoop();
   }
+
 
   createPlayerElements() {
     const gameContainer = document.getElementById("gameMapContainer");
@@ -60,23 +73,26 @@ export class BombermanGame {
     }
 
     this.players.forEach((player, playerId) => {
-      const playerElement = document.createElement("div");
-      playerElement.id = `player-${playerId}`;
-      playerElement.className = `player ${
-        player.isLocal ? "local-player" : "remote-player"
-      }`;
-      playerElement.style.position = "absolute";
-      playerElement.style.width = GameConstants.TILE_SIZE + "px";
-      playerElement.style.height = GameConstants.TILE_SIZE + "px";
-      playerElement.style.zIndex = "10";
+      // Use VNode instead of document.createElement
+      const playerVNode = new VNode("div", {
+        id: `player-${playerId}`,
+        class: `player ${player.isLocal ? "local-player" : "remote-player"}`,
+        style: `
+        position:absolute;
+        width:${GameConstants.TILE_SIZE}px;
+        height:${GameConstants.TILE_SIZE}px;
+        z-index:10;
+      `,
+      });
 
+      const playerElement = playerVNode.render();
       gameContainer.appendChild(playerElement);
+
       player.setElement(playerElement);
       player.updateElementPosition();
 
-      // Initialize sprite for remote players
       if (!player.isLocal) {
-        player.updateAnimation(0, 0); // Set initial sprite
+        player.updateAnimation(0, 0); // init sprite for remote players
       }
     });
   }
@@ -159,7 +175,7 @@ export class BombermanGame {
     ) {
       const gridY = Math.floor(
         (localPlayer.position.y + GameConstants.TILE_SIZE / 2) /
-          GameConstants.TILE_SIZE
+        GameConstants.TILE_SIZE
       );
       const laneCenterY = gridY * GameConstants.TILE_SIZE;
 
@@ -180,7 +196,7 @@ export class BombermanGame {
     ) {
       const gridX = Math.floor(
         (localPlayer.position.x + GameConstants.TILE_SIZE / 2) /
-          GameConstants.TILE_SIZE
+        GameConstants.TILE_SIZE
       );
       const laneCenterX = gridX * GameConstants.TILE_SIZE;
 
@@ -642,16 +658,18 @@ export class BombermanGame {
     const existingOverlay = document.getElementById("spectatorOverlay");
     if (existingOverlay) return; // Already showing
 
-    const overlay = document.createElement("div");
-    overlay.id = "spectatorOverlay";
-    overlay.className = "spectator-overlay";
+    const overlayVNode = new VNode("div", {
+      id: "spectatorOverlay",
+      class: "spectator-overlay"
+    }, [
+      new VNode("div", { class: "spectator-message" }, [
+        new VNode("h3", {}, ["SPECTATOR MODE"]),
+        new VNode("p", {}, ["You have been eliminated. Watch the remaining players!"])
+      ])
+    ]);
 
-    const message = document.createElement("div");
-    message.className = "spectator-message";
-    message.innerHTML =
-      "<h3>SPECTATOR MODE</h3><p>You have been eliminated. Watch the remaining players!</p>";
+    gameContainer.appendChild(overlayVNode.render());
 
-    overlay.appendChild(message);
     gameContainer.appendChild(overlay);
   }
 
@@ -726,67 +744,46 @@ export class BombermanGame {
     const gameContainer = document.getElementById("gameMapContainer");
     if (!gameContainer) return;
 
-    // Remove existing overlays
+    // Clear old overlays (VNode should ideally replace them via diffing later)
     const existingOverlay = document.getElementById("gameOverOverlay");
     if (existingOverlay) existingOverlay.remove();
-
     const spectatorOverlay = document.getElementById("spectatorOverlay");
     if (spectatorOverlay) spectatorOverlay.remove();
 
-    // Create leaderboard overlay
-    const overlay = document.createElement("div");
-    overlay.id = "gameOverOverlay";
-    overlay.className = "game-over-overlay";
-
-    const content = document.createElement("div");
-    content.className = "game-over-content";
-
-    const title = document.createElement("h1");
-    title.className = "game-over-title";
-    title.textContent = "Game Over";
-
-    const winnerText = document.createElement("h2");
-    winnerText.className = "game-over-winner";
-    winnerText.textContent = winner ? `${winner.nickname} Wins!` : "No Winner";
-
-    const leaderboardTitle = document.createElement("h3");
-    leaderboardTitle.className = "leaderboard-title";
-    leaderboardTitle.textContent = "Final Rankings";
-
-    const leaderboardList = document.createElement("div");
-    leaderboardList.className = "leaderboard-list";
-
-    leaderboard.forEach((player) => {
-      const playerRow = document.createElement("div");
-      playerRow.className = `leaderboard-row rank-${player.rank}`;
-
+    // Leaderboard rows as VNodes
+    const leaderboardRows = leaderboard.map((player) => {
       const rankIcon = this.getRankIcon(player.rank);
       const livesText =
         player.lives > 0 ? ` (${player.lives} lives)` : " (Eliminated)";
 
-      playerRow.innerHTML = `
-        <span class="rank">${rankIcon} ${player.rank}${this.getOrdinalSuffix(
-        player.rank
-      )}</span>
-        <span class="nickname">${player.nickname}</span>
-        <span class="lives">${livesText}</span>
-      `;
-
-      leaderboardList.appendChild(playerRow);
+      return new VNode("div", { class: `leaderboard-row rank-${player.rank}` }, [
+        new VNode("span", { class: "rank" }, [
+          `${rankIcon} ${player.rank}${this.getOrdinalSuffix(player.rank)}`,
+        ]),
+        new VNode("span", { class: "nickname" }, [player.nickname]),
+        new VNode("span", { class: "lives" }, [livesText]),
+      ]);
     });
 
-    const returnMessage = document.createElement("p");
-    returnMessage.className = "return-lobby-message";
-    returnMessage.textContent = "Press Cntrl + R  to restart GAME";
+    // Whole overlay as VNode
+    const overlayVNode = new VNode("div", {
+      id: "gameOverOverlay",
+      class: "game-over-overlay",
+    }, [
+      new VNode("div", { class: "game-over-content" }, [
+        new VNode("h1", { class: "game-over-title" }, ["Game Over"]),
+        new VNode("h2", { class: "game-over-winner" }, [
+          winner ? `${winner.nickname} Wins!` : "No Winner",
+        ]),
+        new VNode("h3", { class: "leaderboard-title" }, ["Final Rankings"]),
+        new VNode("div", { class: "leaderboard-list" }, leaderboardRows),
+        new VNode("p", { class: "return-lobby-message" }, [
+          "Press Ctrl + R to restart GAME",
+        ]),
+      ]),
+    ]);
 
-    content.appendChild(title);
-    content.appendChild(winnerText);
-    content.appendChild(leaderboardTitle);
-    content.appendChild(leaderboardList);
-    content.appendChild(returnMessage);
-    overlay.appendChild(content);
-
-    gameContainer.appendChild(overlay);
+    gameContainer.appendChild(overlayVNode.render());
   }
 
   getRankIcon(rank) {
