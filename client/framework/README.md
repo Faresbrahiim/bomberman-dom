@@ -208,5 +208,3 @@ You can extend this framework by adding:
 - Effects and memoization
 
 ---
-
-Happy coding! 🚀

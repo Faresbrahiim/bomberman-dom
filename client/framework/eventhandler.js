@@ -9,7 +9,7 @@ export class EventRegistry {
     }
 
     dispatch(eventType, payload) {
-        const cbs = this.listeners.get(eventType);
+        const cbs = this.gi.get(eventType);
         if (cbs) {
             for (const cb of cbs) cb(payload);
         }
