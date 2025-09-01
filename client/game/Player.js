@@ -60,23 +60,24 @@ export class Player {
     }
   }
 
-  takeDamage() {
-    console.log("hi");
-    
-    if (this.isInvincible || this.lives <= 0) return false;
-    this.isInvincible = true;
-    this.hasDamageFlash = true;
+ takeDamage() {
+  if (this.isInvincible || this.lives <= 0) return false;
+  
+  this.lives--; 
+  this.isInvincible = true;
+  this.hasDamageFlash = true;
 
-    if (this.lives > 0) {
-      setTimeout(() => {
-        this.isInvincible = false;
-        this.hasDamageFlash = false;
-      }, GameConstants.INVINCIBILITY_DURATION);
-    } else {
-      this.dead = true;
-    }
-    return true;
+  if (this.lives > 0) {
+    setTimeout(() => {
+      this.isInvincible = false;
+      this.hasDamageFlash = false;
+    }, GameConstants.INVINCIBILITY_DURATION);
+  } else {
+    this.dead = true;
   }
+  return true;
+}
+
 
   updateAnimation(dx, dy) {
     const isMoving = dx !== 0 || dy !== 0;
