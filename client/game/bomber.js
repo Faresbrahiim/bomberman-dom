@@ -12,7 +12,7 @@ export class BombermanGame {
     this.socketManager = socketManager;
     this.seed = gameData.seed;
     this.localPlayerId = socketManager.playerId;
-
+    this.takeDamage = false;
     // framework
     (this.eventRegistry = eventRegistry),
       (this.inputHandler = new InputHandler(this.eventRegistry));
@@ -507,6 +507,7 @@ export class BombermanGame {
       this.activeBombs.delete(bombId);
     }
     this.handleExplosionCells(cells);
+    this.takeDamage = false;
     this.requestRender();
   }
 
@@ -519,6 +520,13 @@ export class BombermanGame {
     console.log(this.players);
 
     const type = this.currentMap[y][x];
+    this.players.forEach((p) => {
+      const g = p.getGridPosition();
+      if (g.x === x && g.y === y && p.isLocal && !this.takeDamage) {
+        this.takeDamage = true;
+        this.socketManager.sendPlayerDied();
+      }
+    });
     if (type === GameConstants.CELL_TYPES.DESTRUCTIBLE) {
       this.destroyWall(x, y);
     } else if (type === GameConstants.CELL_TYPES.BOMB) {
