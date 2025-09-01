@@ -223,16 +223,13 @@ export class BombermanGame {
     this.socketManager.on("playerDied", (data) => {
       const player = this.players.get(data.playerId);
       if (player) {
-        // تحديث حياة اللاعب من البيانات القادمة من الخادم
         player.lives = data.lives;
-        this.handlePlayerDeath(data.playerId); // تمرير معرف اللاعب فقط
+        this.handlePlayerDeath(data.playerId); 
 
-        // معالجة إقصاء اللاعب المحلي
         if (data.playerId === this.localPlayerId && data.lives === 0) {
           this.enableSpectatorMode();
         }
 
-        // تحديث واجهة المستخدم لجميع اللاعبين
         this.ui.updateAllPlayersStatus(this.players);
       }
     });
