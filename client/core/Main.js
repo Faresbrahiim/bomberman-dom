@@ -60,35 +60,37 @@ export class Main {
 
 
   handleJoin() {
-    const input = document.getElementById("nicknameInput");
-    const nickname = input.value.trim();
+    if (!this.nicknameInput || !this.errorMsgEl) return;
 
+    const nickname = this.nicknameInput.value.trim();
+
+    // Validation
     if (!nickname) {
-      document.getElementById("errorMsg").textContent =
-        "Please enter a nickname.";
+      this.errorMsgEl.textContent = "Please enter a nickname.";
       return;
     }
 
     if (nickname.length < 3 || nickname.length > 16) {
-      document.getElementById("errorMsg").textContent =
-        "Nickname must be 3-16 characters long.";
+      this.errorMsgEl.textContent = "Nickname must be 3-16 characters long.";
       return;
     }
 
     if (!/^[a-zA-Z0-9_]+$/.test(nickname)) {
-      document.getElementById("errorMsg").textContent =
+      this.errorMsgEl.textContent =
         "Nickname can only contain letters, numbers, and underscores.";
       return;
     }
 
     if (nickname.includes("<3")) {
-      document.getElementById("errorMsg").textContent = "Invalid nickname.";
+      this.errorMsgEl.textContent = "Invalid nickname.";
       return;
     }
 
+    // All good, save nickname and start socket
     this.nickname = nickname;
     this.startSocket();
   }
+
 
   startSocket() {
     this.socketManager = new SocketManager(this.nickname);
@@ -121,14 +123,15 @@ export class Main {
     });
 
     this.socketManager.on("invalidNickname", (reason) => {
-      document.getElementById("errorMsg").textContent = reason;
+      if (this.errorMsgEl) this.errorMsgEl.textContent = reason;
     });
 
     this.socketManager.ws.onerror = () => {
-      document.getElementById("errorMsg").textContent =
+      if (this.errorMsgEl) this.errorMsgEl.textContent =
         "Failed to connect to server. Please try again.";
     };
   }
+
 
   renderLobby() {
     const vnode = new VNode("div", { class: "lobby" }, [
