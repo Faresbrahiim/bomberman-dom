@@ -4,7 +4,7 @@ export class InputHandler {
         this.disabled = false;
         this.setupEventListeners();
     }
-
+    
     setupEventListeners() {
         document.addEventListener('keydown', (e) => {
             // Ignore keys if typing in chat or input is disabled

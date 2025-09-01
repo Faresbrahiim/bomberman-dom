@@ -14,9 +14,10 @@ export class BombermanGame {
     this.players = new Map();
     this.localPlayerId = socketManager.playerId;
     this.mapContainer = mapContainer; // <--- store this real DOM element
+    const statusContainer = document.querySelector('#playerStatusArea');
 
     this.inputHandler = new InputHandler();
-    this.ui = new GameUI();
+    this.ui = new GameUI(statusContainer, mapContainer); // Pass both containers
     this.currentMap = [];
     this.hiddenPowerups = new Map();
     this.activeBombs = new Map(); // bombId -> Bomb object

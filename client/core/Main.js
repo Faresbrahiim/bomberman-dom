@@ -30,6 +30,13 @@ export class Main {
         class: "nickname-input",
         placeholder: "Nickname (3-16 characters, letters/numbers/_)",
         maxlength: "16",
+        onkeydown: (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault(); // prevent default Enter behavior
+            this.handleJoin();  // call your join handler
+            e.target.focus();   // keep focus on the input
+          }
+        }
       }),
       new VNode(
         "button",
@@ -46,12 +53,7 @@ export class Main {
     this.nicknameInput = rendered.querySelector("#nicknameInput");
     this.errorMsgEl = rendered.querySelector("#errorMsg");
 
-    if (this.nicknameInput) {
-      this.nicknameInput.focus();
-      this.nicknameInput.addEventListener("keypress", (e) => {
-        if (e.key === "Enter") this.handleJoin();
-      });
-    }
+    if (this.nicknameInput) this.nicknameInput.focus();
   }
 
   handleJoin() {

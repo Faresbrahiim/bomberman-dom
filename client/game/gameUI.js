@@ -1,228 +1,257 @@
 import { GameConstants } from "./constant.js";
 import { VNode } from "../framework/vdom.js";
+import { VDOMManager } from '../framework/VDOMmanager.js';
 
 export class GameUI {
-    constructor() {
-        this.injectPlayerCardStyles();
+    constructor(statusContainer, mapContainer) {
+        this.statusContainer = statusContainer;
+        this.mapContainer = mapContainer;
     }
-
-    injectPlayerCardStyles() {
-        // Prevent duplicate style injection
-        if (this.playerCardStyleInjected) return;
-        const styleVNode = new VNode("style", { id: "player-card-styles" }, []);
-        document.head.appendChild(styleVNode.render());
-        this.playerCardStyleInjected = true;
-    }
-
 
     updateAllPlayersStatus(players) {
-        const statusArea = document.getElementById('playerStatusArea');
-        if (!statusArea) return;
+        if (!this.statusContainer) {
+            console.error('statusContainer not provided!');
+            return;
+        }
 
-        // Clear existing content
-        statusArea.innerHTML = '';
+        // Initialize VDOMManager if not exists
+        if (!this.playerStatusManager) {
+            this.playerStatusManager = new VDOMManager(
+                this.statusContainer,
+                (state) => this.renderPlayersStatus(state.players),
+                { players: [] }
+            );
+            this.playerStatusManager.mount();
+        }
 
-        // Create players container
-        const playersContainer = document.createElement('div');
-        playersContainer.className = 'players-container';
+        // Debug: Log the players data to see what's being passed
+        console.log('Updating players status:', players);
 
-        players.forEach((player, playerId) => {
-            const playerCard = this.createPlayerCard(player, playerId);
-            playersContainer.appendChild(playerCard);
-        });
+        // Update state to trigger re-render
+        this.playerStatusManager.setState({ players });
+    }
 
-        statusArea.appendChild(playersContainer);
+    // Render function for the players status
+    renderPlayersStatus(players) {
+        console.log('Rendering players status:', players);
+
+        const playerCards = [];
+
+        // Handle both Map and Array cases
+        if (players instanceof Map) {
+            players.forEach((player, playerId) => {
+                console.log(`Player ${playerId}:`, player);
+                playerCards.push(this.createPlayerCard(player, playerId));
+            });
+        } else if (Array.isArray(players)) {
+            players.forEach((player, index) => {
+                console.log(`Player ${index}:`, player);
+                playerCards.push(this.createPlayerCard(player, index));
+            });
+        } else if (players && typeof players === 'object') {
+            // Handle plain object case
+            Object.entries(players).forEach(([playerId, player]) => {
+                console.log(`Player ${playerId}:`, player);
+                playerCards.push(this.createPlayerCard(player, parseInt(playerId)));
+            });
+        }
+
+        return new VNode('div', { class: 'players-container' }, playerCards);
     }
 
     createPlayerCard(player, playerId) {
-        const playerCard = document.createElement('div');
-        playerCard.className = `player-card ${player.isLocal ? 'local-player' : ''}`;
+        console.log('Creating card for player:', playerId, player);
 
-        // Add eliminated class if player has no lives
-        if (player.lives <= 0) {
-            playerCard.classList.add('eliminated');
+        // Ensure player object has expected structure
+        if (!player) {
+            console.warn(`Player ${playerId} is null or undefined`);
+            return new VNode('div', { class: 'player-card error' }, ['Invalid player data']);
         }
 
-        // Create glow effect
-        const glowEffect = document.createElement('div');
-        glowEffect.className = 'glow-effect';
-        playerCard.appendChild(glowEffect);
+        // Provide default values for missing properties
+        const safePlayer = {
+            isLocal: player.isLocal || false,
+            lives: player.lives !== undefined ? player.lives : 3,
+            nickname: player.nickname || `Player ${playerId}`,
+            powerups: {
+                bombs: 0,
+                flames: 1,
+                speed: 1,
+                ...player.powerups
+            }
+        };
 
-        // Create eliminated overlay if needed
-        if (player.lives <= 0) {
-            const eliminatedOverlay = document.createElement('div');
-            eliminatedOverlay.className = 'eliminated-overlay';
-            eliminatedOverlay.textContent = 'Eliminated';
-            playerCard.appendChild(eliminatedOverlay);
-        }
+        console.log('Safe player data:', safePlayer);
+        console.log('Powerups:', safePlayer.powerups);
 
-        // Create player header
-        const playerHeader = document.createElement('div');
-        playerHeader.className = 'player-header';
+        // Helper function to create lives hearts
+        const createLivesHearts = (currentLives) => {
+            const maxLives = Math.max(3, currentLives);
+            const hearts = [];
 
-        const playerAvatar = document.createElement('div');
-        playerAvatar.className = `player-avatar player-${playerId}`;
-        playerAvatar.textContent = `P${playerId}`;
+            for (let i = 0; i < maxLives; i++) {
+                hearts.push(
+                    new VNode('span', {
+                        class: i < currentLives ? 'heart' : 'heart empty'
+                    }, ['♥'])
+                );
+            }
 
-        const playerName = document.createElement('div');
-        playerName.className = 'player-name';
-        playerName.textContent = player.nickname || `Player ${playerId}`;
+            return hearts;
+        };
 
-        playerHeader.appendChild(playerAvatar);
-        playerHeader.appendChild(playerName);
+        // Build class names
+        const cardClasses = [
+            'player-card',
+            safePlayer.isLocal ? 'local-player' : '',
+            safePlayer.lives <= 0 ? 'eliminated' : ''
+        ].filter(Boolean).join(' ');
 
-        if (player.isLocal) {
-            const localBadge = document.createElement('div');
-            localBadge.className = 'local-badge';
-            localBadge.textContent = 'You';
-            playerHeader.appendChild(localBadge);
-        }
+        // Build child elements array
+        const children = [
+            // Glow effect
+            new VNode('div', { class: 'glow-effect' }),
 
-        // Create stats container
-        const statsContainer = document.createElement('div');
-        statsContainer.className = 'stats-container';
+            // Eliminated overlay (conditional)
+            ...(safePlayer.lives <= 0 ? [
+                new VNode('div', { class: 'eliminated-overlay' }, ['Eliminated'])
+            ] : []),
 
-        // Lives stat (full width)
-        const livesContainer = document.createElement('div');
-        livesContainer.className = 'stat-item lives-container';
+            // Player header
+            new VNode('div', { class: 'player-header' }, [
+                new VNode('div', {
+                    class: `player-avatar player-${playerId}`
+                }, [`P${playerId}`]),
 
-        const livesLabel = document.createElement('div');
-        const livesIcon = document.createElement('span');
-        livesIcon.className = 'stat-icon';
-        livesIcon.textContent = '❤️';
-        const livesLabelText = document.createElement('span');
-        livesLabelText.className = 'stat-label';
-        livesLabelText.textContent = 'Lives';
-        livesLabel.appendChild(livesIcon);
-        livesLabel.appendChild(livesLabelText);
+                new VNode('div', { class: 'player-name' }, [
+                    safePlayer.nickname
+                ]),
 
-        const livesHearts = document.createElement('div');
-        livesHearts.className = 'lives-hearts';
+                // Local badge (conditional)
+                ...(safePlayer.isLocal ? [
+                    new VNode('div', { class: 'local-badge' }, ['You'])
+                ] : [])
+            ]),
 
-        // Assuming max 3 lives, adjust as needed
-        const maxLives = Math.max(3, player.lives);
-        for (let i = 0; i < maxLives; i++) {
-            const heart = document.createElement('span');
-            heart.className = i < player.lives ? 'heart' : 'heart empty';
-            heart.textContent = '♥';
-            livesHearts.appendChild(heart);
-        }
+            // Stats container
+            new VNode('div', { class: 'stats-container' }, [
+                // Lives container (spans full width with grid-column: 1 / -1)
+                new VNode('div', { class: 'stat-item lives-container' }, [
+                    new VNode('div', {}, [
+                        new VNode('span', { class: 'stat-icon' }, ['❤️']),
+                        new VNode('span', { class: 'stat-label' }, ['Lives'])
+                    ]),
+                    new VNode('div', { class: 'lives-hearts' },
+                        createLivesHearts(safePlayer.lives)
+                    )
+                ]),
 
-        livesContainer.appendChild(livesLabel);
-        livesContainer.appendChild(livesHearts);
+                // Powerup stats using the refactored createStatItem
+                this.createStatItem('💣', 'Bombs', safePlayer.powerups.bombs, 'powerup-bombs'),
+                this.createStatItem('🔥', 'Flames', safePlayer.powerups.flames, 'powerup-flames'),
+                this.createStatItem('⚡', 'Speed', safePlayer.powerups.speed, 'powerup-speed')
+            ])
+        ];
 
-        // Bombs stat
-        const bombsContainer = this.createStatItem('💣', 'Bombs', player.powerups.bombs, 'powerup-bombs');
-
-        // Flames stat
-        const flamesContainer = this.createStatItem('🔥', 'Flames', player.powerups.flames, 'powerup-flames');
-
-        // Speed stat
-        const speedContainer = this.createStatItem('⚡', 'Speed', player.powerups.speed, 'powerup-speed');
-
-        statsContainer.appendChild(livesContainer);
-        statsContainer.appendChild(bombsContainer);
-        statsContainer.appendChild(flamesContainer);
-        statsContainer.appendChild(speedContainer);
-
-        playerCard.appendChild(playerHeader);
-        playerCard.appendChild(statsContainer);
-
-        return playerCard;
+        return new VNode('div', { class: cardClasses }, children);
     }
 
     createStatItem(icon, label, value, additionalClass = '') {
-        const statItem = document.createElement('div');
-        statItem.className = `stat-item ${additionalClass}`;
+        // Ensure value is a number and provide fallback
+        const displayValue = value !== undefined && value !== null ? value : 0;
 
-        const statLabel = document.createElement('div');
-        const statIcon = document.createElement('span');
-        statIcon.className = 'stat-icon';
-        statIcon.textContent = icon;
-        const statLabelText = document.createElement('span');
-        statLabelText.className = 'stat-label';
-        statLabelText.textContent = label;
-        statLabel.appendChild(statIcon);
-        statLabel.appendChild(statLabelText);
+        console.log(`Creating stat item: ${label} = ${displayValue} (type: ${typeof displayValue})`);
 
-        const statValue = document.createElement('span');
-        statValue.className = 'stat-value';
-        statValue.textContent = value;
-
-        statItem.appendChild(statLabel);
-        statItem.appendChild(statValue);
-
-        return statItem;
+        return new VNode('div', { class: `stat-item ${additionalClass}` }, [
+            new VNode('div', {}, [
+                new VNode('span', { class: 'stat-icon' }, [icon]),
+                new VNode('span', { class: 'stat-label' }, [label])
+            ]),
+            new VNode('span', { class: 'stat-value' }, [String(displayValue)])
+        ]);
     }
 
     getPlayerColor(playerId) {
         const colors = ['#ff4444', '#4444ff', '#44ff44', '#ffff44'];
-        return colors[playerId - 1] || '#ff4444';
+        return colors[playerId] || '#ff4444';
     }
 
     renderMap(map, width, height, hiddenPowerups) {
-        // First, find or create the map container
-        let mapElement = document.getElementById('map');
-        if (!mapElement) {
-            // Create map container if it doesn't exist
-            const gameContainer = document.getElementById('gameMapContainer');
-            if (!gameContainer) {
-                console.error('Game container not found!');
-                return;
-            }
-
-            mapElement = document.createElement('div');
-            mapElement.id = 'map';
-            mapElement.style.display = 'grid';
-            mapElement.style.gridTemplateColumns = `repeat(${width}, ${GameConstants.TILE_SIZE}px)`;
-            mapElement.style.gridTemplateRows = `repeat(${height}, ${GameConstants.TILE_SIZE}px)`;
-            mapElement.style.gap = '0';
-            mapElement.style.position = 'relative';
-            gameContainer.appendChild(mapElement);
+        if (!this.mapContainer) {
+            console.error('mapContainer not provided!');
+            return;
         }
 
-        mapElement.innerHTML = '';
+        // Initialize VDOMManager for the map if not exists
+        if (!this.mapManager) {
+            this.mapManager = new VDOMManager(
+                this.mapContainer,
+                (state) => this.renderMapVNode(state.map, state.width, state.height, state.hiddenPowerups),
+                { map: [], width: 0, height: 0, hiddenPowerups: new Set() }
+            );
+            this.mapManager.mount();
+        }
+
+        // Update state to trigger re-render
+        this.mapManager.setState({ map, width, height, hiddenPowerups });
+    }
+
+    renderMapVNode(map, width, height, hiddenPowerups) {
+        const cells = [];
 
         for (let y = 0; y < height; y++) {
             for (let x = 0; x < width; x++) {
-                const cell = document.createElement('div');
-                cell.className = 'cell';
-                cell.dataset.x = x;
-                cell.dataset.y = y;
-                cell.style.width = GameConstants.TILE_SIZE + 'px';
-                cell.style.height = GameConstants.TILE_SIZE + 'px';
+                const cellType = map[y][x];
+                const cellClasses = ['cell'];
 
-                switch (map[y][x]) {
+                // Determine cell type class
+                switch (cellType) {
                     case GameConstants.CELL_TYPES.EMPTY:
-                        cell.classList.add('empty');
+                        cellClasses.push('empty');
                         break;
                     case GameConstants.CELL_TYPES.WALL:
-                        cell.classList.add('wall');
+                        cellClasses.push('wall');
                         break;
                     case GameConstants.CELL_TYPES.DESTRUCTIBLE:
-                        cell.classList.add('destructible');
+                        cellClasses.push('destructible');
                         if (hiddenPowerups.has(`${x},${y}`)) {
-                            cell.classList.add('has-powerup');
+                            cellClasses.push('has-powerup');
                         }
                         break;
                     case GameConstants.CELL_TYPES.PLAYER_SPAWN:
-                        cell.classList.add('player-spawn');
+                        cellClasses.push('player-spawn');
                         break;
                     case GameConstants.CELL_TYPES.BOMB_POWERUP:
-                        cell.classList.add('bomb-powerup');
+                        cellClasses.push('bomb-powerup');
                         break;
                     case GameConstants.CELL_TYPES.FLAME_POWERUP:
-                        cell.classList.add('flame-powerup');
+                        cellClasses.push('flame-powerup');
                         break;
                     case GameConstants.CELL_TYPES.SPEED_POWERUP:
-                        cell.classList.add('speed-powerup');
+                        cellClasses.push('speed-powerup');
                         break;
                     case GameConstants.CELL_TYPES.BOMB:
-                        cell.classList.add('bomb');
+                        cellClasses.push('bomb');
                         break;
                 }
-                mapElement.appendChild(cell);
+
+                // Create cell VNode with proper attributes
+                const cellVNode = new VNode('div', {
+                    class: cellClasses.join(' '),
+                    'data-x': x,
+                    'data-y': y,
+                    style: `width: ${GameConstants.TILE_SIZE}px; height: ${GameConstants.TILE_SIZE}px;`,
+                    key: `cell-${x}-${y}` // Important for efficient diffing
+                });
+
+                cells.push(cellVNode);
             }
         }
+
+        // Return the map container VNode
+        return new VNode('div', {
+            id: 'map',
+            style: `display: grid; grid-template-columns: repeat(${width}, ${GameConstants.TILE_SIZE}px); grid-template-rows: repeat(${height}, ${GameConstants.TILE_SIZE}px); gap: 0; position: relative;`
+        }, cells);
     }
 }

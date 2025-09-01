@@ -34,7 +34,7 @@ export class ChatManager {
 
     return new VNode("div", { class: "chat-container" }, [
       new VNode("div", { class: "chat-header" }, [
-        new VNode("h3", {}, ["💬 Chat"]), // Added cute emoji
+        new VNode("h3", {}, ["💬 Chat"]),
       ]),
       new VNode("div", { id: "chatMessages", class: "chat-messages" }, messages),
       new VNode("div", { class: "chat-input-container" }, [
@@ -43,8 +43,16 @@ export class ChatManager {
           type: "text",
           class: "chat-input",
           placeholder: "Type your cute message... ✨",
-          maxlength: "200"
+          maxlength: "200",
+          onkeydown: (e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              this.sendMessage(setState); // send message
+              e.target.focus(); // keep input focused
+            }
+          }
         }),
+
         new VNode("button", {
           id: "chatSend",
           class: "chat-send",
@@ -52,24 +60,7 @@ export class ChatManager {
         }, ["Send! 💫"])
       ])
     ]);
-  }
 
-  setupEventListeners() {
-    const input = document.getElementById("chatInput");
-
-    // Focus chat when Enter is pressed (if not already typing)
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        if (document.activeElement !== input) {
-          e.preventDefault();
-          input.focus();
-        } else {
-          e.preventDefault();
-          this.sendMessage(this.vdom.setState.bind(this.vdom));
-          input.blur(); // leave chat → back to game
-        }
-      }
-    });
   }
 
 
