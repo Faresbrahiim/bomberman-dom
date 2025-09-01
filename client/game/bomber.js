@@ -1,3 +1,6 @@
+// =============================================================================
+// STEP 1: IMPORTS (EXECUTED FIRST - MODULE LOADING)
+// =============================================================================
 import { GameConstants } from "./constant.js";
 import { BombermanMapGenerator } from "./Map.js";
 import { InputHandler } from "./input.js";
@@ -6,7 +9,10 @@ import { Player } from "./Player.js";
 import { Bomb } from "./Bomb.js";
 import { VDOMManager } from "../framework/VDOMmanager.js";
 import { VNode } from "../framework/vdom.js";
-// Main multiplayer game class
+
+// =============================================================================
+// STEP 2: MAIN MULTIPLAYER GAME CLASS (DEFINED SECOND - GAME STRUCTURE)
+// =============================================================================
 export class BombermanGame {
   constructor(socketManager, gameData, mapContainer) {
     this.socketManager = socketManager;
@@ -34,6 +40,9 @@ export class BombermanGame {
     this.setupSocketListeners();
   }
 
+  // =============================================================================
+  // STEP 3: PLAYER INITIALIZATION (DEFINED THIRD - PLAYER SETUP)
+  // =============================================================================
   initializePlayers(playersData) {
     playersData.forEach((playerData) => {
       const player = new Player(
@@ -50,6 +59,9 @@ export class BombermanGame {
     });
   }
 
+  // =============================================================================
+  // STEP 4: GAME INITIALIZATION (EXECUTED FOURTH - SETUP COMPLETE GAME)
+  // =============================================================================
   init() {
     this.generateMap();
     this.createPlayerElements();
@@ -73,6 +85,11 @@ export class BombermanGame {
     this.gameLoop();
   }
 
+  // =============================================================================
+  // STEP 5: UI RENDERING FUNCTIONS (DEFINED FIFTH - VISUAL INTERFACE)
+  // =============================================================================
+
+  // --- VIRTUAL DOM UI RENDERER ---
   renderUI(state, setState) {
     const overlays = [];
 
@@ -110,42 +127,46 @@ export class BombermanGame {
     return new VNode("div", { id: "overlayRoot" }, overlays);
   }
 
-createPlayerElements() {
-  if (!this.mapContainer) {
-    console.error("Game container not found!");
-    return;
+  // --- CREATE PLAYER VISUAL ELEMENTS ---
+  createPlayerElements() {
+    if (!this.mapContainer) {
+      console.error("Game container not found!");
+      return;
+    }
+
+    // Create an array of VNodes for all players
+    const playerNodes = Array.from(this.players.values()).map((player) => {
+      return new VNode(
+        "div",
+        {
+          id: `player-${player.playerId}`,
+          class: `player ${player.isLocal ? "local-player" : "remote-player"}`,
+          style: `position:absolute;width:${GameConstants.TILE_SIZE}px;height:${GameConstants.TILE_SIZE}px;z-index:10;`,
+        },
+        []
+      );
+    });
+
+    // Render all player VNodes and attach them to the map container
+    playerNodes.forEach((vnode, index) => {
+      const rendered = vnode.render();
+      this.mapContainer.appendChild(rendered);
+
+      const player = Array.from(this.players.values())[index];
+      player.setElement(rendered);
+      player.updateElementPosition();
+
+      if (!player.isLocal) {
+        player.updateAnimation(0, 0); // initial sprite for remote players
+      }
+    });
   }
 
-  // Create an array of VNodes for all players
-  const playerNodes = Array.from(this.players.values()).map((player) => {
-    return new VNode(
-      "div",
-      {
-        id: `player-${player.playerId}`,
-        class: `player ${player.isLocal ? "local-player" : "remote-player"}`,
-        style: `position:absolute;width:${GameConstants.TILE_SIZE}px;height:${GameConstants.TILE_SIZE}px;z-index:10;`,
-      },
-      []
-    );
-  });
+  // =============================================================================
+  // STEP 6: MAP GENERATION FUNCTIONS (DEFINED SIXTH - GAME WORLD CREATION)
+  // =============================================================================
 
-  // Render all player VNodes and attach them to the map container
-  playerNodes.forEach((vnode, index) => {
-    const rendered = vnode.render();
-    this.mapContainer.appendChild(rendered);
-
-    const player = Array.from(this.players.values())[index];
-    player.setElement(rendered);
-    player.updateElementPosition();
-
-    if (!player.isLocal) {
-      player.updateAnimation(0, 0); // initial sprite for remote players
-    }
-  });
-}
-
-
-
+  // --- GENERATE GAME MAP ---
   generateMap() {
     const generator = new BombermanMapGenerator(
       this.seed,
@@ -172,6 +193,11 @@ createPlayerElements() {
     );
   }
 
+  // =============================================================================
+  // STEP 7: ANIMATION SYSTEM (DEFINED SEVENTH - VISUAL UPDATES)
+  // =============================================================================
+
+  // --- UPDATE REMOTE PLAYER ANIMATIONS ---
   updateRemotePlayerAnimations() {
     this.players.forEach((player, playerId) => {
       if (!player.isLocal && player.isMoving) {
@@ -187,6 +213,11 @@ createPlayerElements() {
     });
   }
 
+  // =============================================================================
+  // STEP 8: MAIN GAME LOOP (EXECUTED EIGHTH - CONTINUOUS UPDATES)
+  // =============================================================================
+
+  // --- MAIN GAME LOOP ---
   gameLoop() {
     this.handleInput();
     this.updateLocalPlayerPosition();
@@ -195,6 +226,11 @@ createPlayerElements() {
     this.animationFrameId = requestAnimationFrame(() => this.gameLoop());
   }
 
+  // =============================================================================
+  // STEP 9: INPUT HANDLING SYSTEM (DEFINED NINTH - PLAYER CONTROLS)
+  // =============================================================================
+
+  // --- HANDLE PLAYER INPUT ---
   handleInput() {
     const localPlayer = this.players.get(this.localPlayerId);
     if (!localPlayer) return;
@@ -205,6 +241,11 @@ createPlayerElements() {
     }
   }
 
+  // =============================================================================
+  // STEP 10: PLAYER MOVEMENT SYSTEM (DEFINED TENTH - POSITION UPDATES)
+  // =============================================================================
+
+  // --- UPDATE LOCAL PLAYER POSITION WITH COLLISION AND CORNER ASSISTANCE ---
   updateLocalPlayerPosition() {
     const localPlayer = this.players.get(this.localPlayerId);
     if (!localPlayer) return;
@@ -301,6 +342,11 @@ createPlayerElements() {
     }
   }
 
+  // =============================================================================
+  // STEP 11: COLLISION DETECTION SYSTEM (DEFINED ELEVENTH - PHYSICS LOGIC)
+  // =============================================================================
+
+  // --- CHECK IF CELL IS SOLID ---
   isSolid(cellType, gridX, gridY) {
     if (
       cellType === GameConstants.CELL_TYPES.WALL ||
@@ -316,6 +362,7 @@ createPlayerElements() {
     return false;
   }
 
+  // --- COLLISION DETECTION ---
   isColliding(px, py) {
     const boxLeft = px + GameConstants.COLLISION_GRACE;
     const boxRight =
@@ -352,6 +399,7 @@ createPlayerElements() {
     return false;
   }
 
+  // --- UPDATE PASS-THROUGH BOMB TRACKING ---
   updatePassThroughBombs(player) {
     const boxLeft = player.position.x + GameConstants.COLLISION_GRACE;
     const boxRight =
@@ -385,6 +433,11 @@ createPlayerElements() {
     }
   }
 
+  // =============================================================================
+  // STEP 12: POWERUP COLLECTION SYSTEM (DEFINED TWELFTH - ITEM PICKUP LOGIC)
+  // =============================================================================
+
+  // --- CHECK FOR POWERUP COLLECTION ---
   checkPowerupCollection(player) {
     const gridPos = player.getGridPosition();
     const cellType = this.currentMap[gridPos.y][gridPos.x];
@@ -398,7 +451,6 @@ createPlayerElements() {
     ) {
       player.collectPowerup(cellType);
       this.currentMap[gridPos.y][gridPos.x] = GameConstants.CELL_TYPES.EMPTY;
-
 
       if (this.mapContainer) {
         const cellElement = this.mapContainer.querySelector(
@@ -416,7 +468,7 @@ createPlayerElements() {
     }
   }
 
-
+  // --- HANDLE REMOTE POWERUP COLLECTION ---
   handlePowerupCollected(playerId, position, powerupType) {
     const player = this.players.get(playerId);
     if (player) {
@@ -436,7 +488,11 @@ createPlayerElements() {
     }
   }
 
+  // =============================================================================
+  // STEP 13: BOMB PLACEMENT SYSTEM (DEFINED THIRTEENTH - EXPLOSIVE LOGIC)
+  // =============================================================================
 
+  // --- PLACE BOMB (LOCAL PLAYER) ---
   placeBomb() {
     const localPlayer = this.players.get(this.localPlayerId);
     if (!localPlayer) return;
@@ -466,34 +522,39 @@ createPlayerElements() {
     this.socketManager.sendPlaceBomb(gridPos);
   }
 
+  // --- PLACE BOMB AT POSITION ---
   placeBombAt(position, bombId, playerId) {
-  const bomb = new Bomb(position.x, position.y, bombId, playerId);
-  this.currentMap[position.y][position.x] = GameConstants.CELL_TYPES.BOMB;
-  this.activeBombs.set(bombId, bomb);
+    const bomb = new Bomb(position.x, position.y, bombId, playerId);
+    this.currentMap[position.y][position.x] = GameConstants.CELL_TYPES.BOMB;
+    this.activeBombs.set(bombId, bomb);
 
-  // Only local player gets pass-through
-  if (playerId === this.localPlayerId) {
-    this.passThroughBombs.add(`${position.x},${position.y}`);
-  }
+    // Only local player gets pass-through
+    if (playerId === this.localPlayerId) {
+      this.passThroughBombs.add(`${position.x},${position.y}`);
+    }
 
+    if (this.mapContainer) {
+      const cellElement = this.mapContainer.querySelector(
+        `[data-x="${position.x}"][data-y="${position.y}"]`
+      );
+      if (cellElement) {
+        cellElement.className = "cell bomb";
+        // Set the bomb element for animation
+        bomb.setElement(cellElement);
+      }
+    }
 
-  if (this.mapContainer) {
-    const cellElement = this.mapContainer.querySelector(
-      `[data-x="${position.x}"][data-y="${position.y}"]`
-    );
-    if (cellElement) {
-      cellElement.className = "cell bomb";
-      // Set the bomb element for animation
-      bomb.setElement(cellElement);
+    // Only the bomb owner handles the explosion timing
+    if (playerId === this.localPlayerId) {
+      bomb.startTimer((x, y) => this.explodeBomb(x, y, bombId));
     }
   }
 
-  // Only the bomb owner handles the explosion timing
-  if (playerId === this.localPlayerId) {
-    bomb.startTimer((x, y) => this.explodeBomb(x, y, bombId));
-  }
-}
+  // =============================================================================
+  // STEP 14: EXPLOSION SYSTEM (DEFINED FOURTEENTH - BOMB DETONATION LOGIC)
+  // =============================================================================
 
+  // --- EXPLODE BOMB ---
   explodeBomb(x, y, bombId) {
     const bomb = this.activeBombs.get(bombId);
     if (!bomb || bomb.exploded) return;
@@ -544,6 +605,7 @@ createPlayerElements() {
     this.socketManager.sendBombExploded(bombId, explosionCells);
   }
 
+  // --- HANDLE REMOTE BOMB EXPLOSION ---
   handleBombExplosion(bombId, explosionCells) {
     const bomb = this.activeBombs.get(bombId);
     if (bomb) {
@@ -554,157 +616,168 @@ createPlayerElements() {
     this.handleExplosionCells(explosionCells);
   }
 
+  // --- HANDLE EXPLOSION CELLS ---
   handleExplosionCells(explosionCells) {
     explosionCells.forEach((cell) => {
       this.handleExplosionAt(cell.x, cell.y);
     });
   }
 
- handleExplosionAt(x, y) {
-  if (!this.mapContainer) return;
+  // --- HANDLE EXPLOSION AT SPECIFIC POSITION ---
+  handleExplosionAt(x, y) {
+    if (!this.mapContainer) return;
 
-  const cellElement = this.mapContainer.querySelector(
-    `[data-x="${x}"][data-y="${y}"]`
-  );
-  const cellType = this.currentMap[y][x];
+    const cellElement = this.mapContainer.querySelector(
+      `[data-x="${x}"][data-y="${y}"]`
+    );
+    const cellType = this.currentMap[y][x];
 
-  // Check if any player is hit
-  this.players.forEach((player) => {
-    const playerGridPos = player.getGridPosition();
-    if (playerGridPos.x === x && playerGridPos.y === y) {
-      if (player.isLocal) {
-        this.handlePlayerDeath(player.playerId);
+    // Check if any player is hit
+    this.players.forEach((player) => {
+      const playerGridPos = player.getGridPosition();
+      if (playerGridPos.x === x && playerGridPos.y === y) {
+        if (player.isLocal) {
+          this.handlePlayerDeath(player.playerId);
+        }
+      }
+    });
+
+    if (cellType === GameConstants.CELL_TYPES.DESTRUCTIBLE) {
+      this.destroyWall(x, y);
+    } else if (cellType === GameConstants.CELL_TYPES.BOMB) {
+      // Handle chain explosion
+      const chainBomb = Array.from(this.activeBombs.values()).find(
+        (b) => b.x === x && b.y === y && !b.exploded
+      );
+      if (chainBomb) {
+        setTimeout(() => {
+          if (this.activeBombs.has(chainBomb.bombId) && !chainBomb.exploded) {
+            this.explodeBomb(chainBomb.x, chainBomb.y, chainBomb.bombId);
+          }
+        }, 100);
       }
     }
-  });
 
-  if (cellType === GameConstants.CELL_TYPES.DESTRUCTIBLE) {
-    this.destroyWall(x, y);
-  } else if (cellType === GameConstants.CELL_TYPES.BOMB) {
-    // Handle chain explosion
-    const chainBomb = Array.from(this.activeBombs.values()).find(
-      (b) => b.x === x && b.y === y && !b.exploded
-    );
-    if (chainBomb) {
-      setTimeout(() => {
-        if (this.activeBombs.has(chainBomb.bombId) && !chainBomb.exploded) {
-          this.explodeBomb(chainBomb.x, chainBomb.y, chainBomb.bombId);
-        }
-      }, 100);
-    }
-  }
-
-  // Visual flame effect
-  if (cellElement) {
-    cellElement.style.backgroundImage = "";
-    cellElement.style.backgroundPosition = "";
-    cellElement.style.backgroundSize = "";
-
-    cellElement.classList.add("flame");
-    setTimeout(() => {
-      const finalCellType = this.currentMap[y][x];
-      cellElement.className = "cell";
-
+    // Visual flame effect
+    if (cellElement) {
       cellElement.style.backgroundImage = "";
       cellElement.style.backgroundPosition = "";
       cellElement.style.backgroundSize = "";
 
-      switch (finalCellType) {
-        case GameConstants.CELL_TYPES.EMPTY:
-          cellElement.classList.add("empty");
-          break;
-        case GameConstants.CELL_TYPES.PLAYER_SPAWN:
-          cellElement.classList.add("player-spawn");
-          break;
+      cellElement.classList.add("flame");
+      setTimeout(() => {
+        const finalCellType = this.currentMap[y][x];
+        cellElement.className = "cell";
+
+        cellElement.style.backgroundImage = "";
+        cellElement.style.backgroundPosition = "";
+        cellElement.style.backgroundSize = "";
+
+        switch (finalCellType) {
+          case GameConstants.CELL_TYPES.EMPTY:
+            cellElement.classList.add("empty");
+            break;
+          case GameConstants.CELL_TYPES.PLAYER_SPAWN:
+            cellElement.classList.add("player-spawn");
+            break;
+          case GameConstants.CELL_TYPES.BOMB_POWERUP:
+            cellElement.classList.add("bomb-powerup");
+            break;
+          case GameConstants.CELL_TYPES.FLAME_POWERUP:
+            cellElement.classList.add("flame-powerup");
+            break;
+          case GameConstants.CELL_TYPES.SPEED_POWERUP:
+            cellElement.classList.add("speed-powerup");
+            break;
+          default:
+            cellElement.classList.add("empty");
+            break;
+        }
+      }, GameConstants.FLAME_DURATION);
+    }
+  }
+
+  // =============================================================================
+  // STEP 15: WALL DESTRUCTION SYSTEM (DEFINED FIFTEENTH - DESTRUCTIBLE BLOCKS)
+  // =============================================================================
+
+  // --- DESTROY WALL AND REVEAL POWERUPS ---
+  destroyWall(x, y) {
+    if (!this.mapContainer || !this.currentMap[y]) return;
+
+    const cell = this.mapContainer.querySelector(
+      `[data-x="${x}"][data-y="${y}"]`
+    );
+
+    if (!cell || this.currentMap[y][x] !== GameConstants.CELL_TYPES.DESTRUCTIBLE) {
+      return;
+    }
+
+    const key = `${x},${y}`;
+    let powerupRevealed = null;
+
+    if (this.hiddenPowerups.has(key)) {
+      const powerupType = this.hiddenPowerups.get(key);
+      this.hiddenPowerups.delete(key);
+      this.currentMap[y][x] = powerupType;
+      powerupRevealed = powerupType;
+
+      cell.className = "cell";
+      switch (powerupType) {
         case GameConstants.CELL_TYPES.BOMB_POWERUP:
-          cellElement.classList.add("bomb-powerup");
+          cell.classList.add("bomb-powerup");
           break;
         case GameConstants.CELL_TYPES.FLAME_POWERUP:
-          cellElement.classList.add("flame-powerup");
+          cell.classList.add("flame-powerup");
           break;
         case GameConstants.CELL_TYPES.SPEED_POWERUP:
-          cellElement.classList.add("speed-powerup");
-          break;
-        default:
-          cellElement.classList.add("empty");
+          cell.classList.add("speed-powerup");
           break;
       }
-    }, GameConstants.FLAME_DURATION);
-  }
-}
-
- destroyWall(x, y) {
-  if (!this.mapContainer || !this.currentMap[y]) return;
-
-  const cell = this.mapContainer.querySelector(
-    `[data-x="${x}"][data-y="${y}"]`
-  );
-
-  if (!cell || this.currentMap[y][x] !== GameConstants.CELL_TYPES.DESTRUCTIBLE) {
-    return;
-  }
-
-  const key = `${x},${y}`;
-  let powerupRevealed = null;
-
-  if (this.hiddenPowerups.has(key)) {
-    const powerupType = this.hiddenPowerups.get(key);
-    this.hiddenPowerups.delete(key);
-    this.currentMap[y][x] = powerupType;
-    powerupRevealed = powerupType;
-
-    cell.className = "cell";
-    switch (powerupType) {
-      case GameConstants.CELL_TYPES.BOMB_POWERUP:
-        cell.classList.add("bomb-powerup");
-        break;
-      case GameConstants.CELL_TYPES.FLAME_POWERUP:
-        cell.classList.add("flame-powerup");
-        break;
-      case GameConstants.CELL_TYPES.SPEED_POWERUP:
-        cell.classList.add("speed-powerup");
-        break;
+    } else {
+      this.currentMap[y][x] = GameConstants.CELL_TYPES.EMPTY;
+      cell.className = "cell empty";
     }
-  } else {
-    this.currentMap[y][x] = GameConstants.CELL_TYPES.EMPTY;
-    cell.className = "cell empty";
+
+    // Notify other players about wall destruction
+    this.socketManager.sendWallDestroyed({ x, y }, powerupRevealed);
   }
 
-  // Notify other players about wall destruction
-  this.socketManager.sendWallDestroyed({ x, y }, powerupRevealed);
-}
-
-
+  // --- HANDLE REMOTE WALL DESTRUCTION ---
   handleWallDestroyed(position, powerupRevealed) {
-  const { x, y } = position;
-  if (!this.mapContainer || !this.currentMap[y]) return;
+    const { x, y } = position;
+    if (!this.mapContainer || !this.currentMap[y]) return;
 
-  const cell = this.mapContainer.querySelector(
-    `[data-x="${x}"][data-y="${y}"]`
-  );
-  if (!cell) return;
+    const cell = this.mapContainer.querySelector(
+      `[data-x="${x}"][data-y="${y}"]`
+    );
+    if (!cell) return;
 
-  if (powerupRevealed) {
-    this.currentMap[y][x] = powerupRevealed;
-    cell.className = "cell";
-    switch (powerupRevealed) {
-      case GameConstants.CELL_TYPES.BOMB_POWERUP:
-        cell.classList.add("bomb-powerup");
-        break;
-      case GameConstants.CELL_TYPES.FLAME_POWERUP:
-        cell.classList.add("flame-powerup");
-        break;
-      case GameConstants.CELL_TYPES.SPEED_POWERUP:
-        cell.classList.add("speed-powerup");
-        break;
+    if (powerupRevealed) {
+      this.currentMap[y][x] = powerupRevealed;
+      cell.className = "cell";
+      switch (powerupRevealed) {
+        case GameConstants.CELL_TYPES.BOMB_POWERUP:
+          cell.classList.add("bomb-powerup");
+          break;
+        case GameConstants.CELL_TYPES.FLAME_POWERUP:
+          cell.classList.add("flame-powerup");
+          break;
+        case GameConstants.CELL_TYPES.SPEED_POWERUP:
+          cell.classList.add("speed-powerup");
+          break;
+      }
+    } else {
+      this.currentMap[y][x] = GameConstants.CELL_TYPES.EMPTY;
+      cell.className = "cell empty";
     }
-  } else {
-    this.currentMap[y][x] = GameConstants.CELL_TYPES.EMPTY;
-    cell.className = "cell empty";
   }
-}
 
+  // =============================================================================
+  // STEP 16: SPECTATOR MODE SYSTEM (DEFINED SIXTEENTH - ELIMINATED PLAYER VIEW)
+  // =============================================================================
 
+  // --- ENABLE SPECTATOR MODE FOR ELIMINATED PLAYERS ---
   enableSpectatorMode() {
     // Disable input but keep game loop running for spectating
     this.inputHandler.disable();
@@ -718,34 +791,38 @@ createPlayerElements() {
       );
     }
   }
-showSpectatorMessage() {
-  if (!this.mapContainer) return;
 
-  // Check if overlay already exists
-  if (this.mapContainer.querySelector("#spectatorOverlay")) return;
+  // --- SHOW SPECTATOR OVERLAY ---
+  showSpectatorMessage() {
+    if (!this.mapContainer) return;
 
-  const overlayVNode = new VNode(
-    "div",
-    { id: "spectatorOverlay", class: "spectator-overlay" },
-    [
-      new VNode(
-        "div",
-        { class: "spectator-message" },
-        [
-          new VNode("h3", {}, ["SPECTATOR MODE"]),
-          new VNode("p", {}, ["You have been eliminated. Watch the remaining players!"])
-        ]
-      )
-    ]
-  );
+    // Check if overlay already exists
+    if (this.mapContainer.querySelector("#spectatorOverlay")) return;
 
-  // Render the VNode and append to map container
-  this.mapContainer.appendChild(overlayVNode.render());
-}
+    const overlayVNode = new VNode(
+      "div",
+      { id: "spectatorOverlay", class: "spectator-overlay" },
+      [
+        new VNode(
+          "div",
+          { class: "spectator-message" },
+          [
+            new VNode("h3", {}, ["SPECTATOR MODE"]),
+            new VNode("p", {}, ["You have been eliminated. Watch the remaining players!"])
+          ]
+        )
+      ]
+    );
 
+    // Render the VNode and append to map container
+    this.mapContainer.appendChild(overlayVNode.render());
+  }
 
+  // =============================================================================
+  // STEP 17: PLAYER ELIMINATION SYSTEM (DEFINED SEVENTEENTH - DEATH HANDLING)
+  // =============================================================================
 
-
+  // --- HANDLE PLAYER ELIMINATION NOTIFICATION ---
   handlePlayerEliminated(data) {
     if (this.chatManager) {
       const suffix = this.getOrdinalSuffix(data.eliminationOrder);
@@ -755,12 +832,14 @@ showSpectatorMessage() {
     }
   }
 
+  // --- GET ORDINAL SUFFIX FOR RANKINGS ---
   getOrdinalSuffix(num) {
     const suffixes = ["th", "st", "nd", "rd"];
     const value = num % 100;
     return suffixes[(value - 20) % 10] || suffixes[value] || suffixes[0];
   }
 
+  // --- HANDLE GAME OVER STATE ---
   handleGameOver(leaderboard, winner) {
     // Stop the game loop
     if (this.animationFrameId) {
@@ -775,6 +854,7 @@ showSpectatorMessage() {
     this.inputHandler.disable();
   }
 
+  // --- HANDLE GAME RESET ---
   handleGameReset(message) {
     // Reset state
     if (this.vdomManager) {
@@ -800,12 +880,14 @@ showSpectatorMessage() {
     }
   }
 
+  // --- SHOW LEADERBOARD OVERLAY ---
   showLeaderboard(leaderboard, winner) {
     if (this.vdomManager) {
       this.vdomManager.setState({ gameOver: true, leaderboard, winner });
     }
   }
 
+  // --- GET RANK ICON FOR LEADERBOARD ---
   getRankIcon(rank) {
     const icons = {
       1: "🥇",
@@ -815,6 +897,12 @@ showSpectatorMessage() {
     };
     return icons[rank] || rank;
   }
+
+  // =============================================================================
+  // STEP 18: PLAYER DEATH SYSTEM (DEFINED EIGHTEENTH - LIFE/DAMAGE LOGIC)
+  // =============================================================================
+
+  // --- HANDLE PLAYER DEATH ---
   handlePlayerDeath(playerId) {
     const player = this.players.get(playerId);
     console.log(player.lives);
@@ -835,7 +923,14 @@ showSpectatorMessage() {
     }
   }
 
+  // =============================================================================
+  // STEP 19: WEBSOCKET EVENT LISTENERS (DEFINED NINETEENTH - NETWORK COMMUNICATION)
+  // =============================================================================
+
+  // --- SETUP ALL SOCKET EVENT LISTENERS ---
   setupSocketListeners() {
+    
+    // --- PLAYER MOVEMENT EVENTS ---
     this.socketManager.on("playerMoved", (data) => {
       const player = this.players.get(data.playerId);
       if (player && !player.isLocal) {
@@ -853,20 +948,24 @@ showSpectatorMessage() {
       }
     });
 
+    // --- BOMB PLACEMENT EVENTS ---
     this.socketManager.on("bombPlaced", (data) => {
       if (data.playerId !== this.localPlayerId) {
         this.placeBombAt(data.position, data.bombId, data.playerId);
       }
     });
 
+    // --- BOMB EXPLOSION EVENTS ---
     this.socketManager.on("bombExploded", (data) => {
       this.handleBombExplosion(data.bombId, data.explosionCells);
     });
 
+    // --- WALL DESTRUCTION EVENTS ---
     this.socketManager.on("wallDestroyed", (data) => {
       this.handleWallDestroyed(data.position, data.powerupRevealed);
     });
 
+    // --- POWERUP COLLECTION EVENTS ---
     this.socketManager.on("powerupCollected", (data) => {
       if (data.playerId !== this.localPlayerId) {
         this.handlePowerupCollected(
@@ -877,6 +976,7 @@ showSpectatorMessage() {
       }
     });
 
+    // --- PLAYER DEATH EVENTS ---
     this.socketManager.on("playerDied", (data) => {
       const player = this.players.get(data.playerId);
       if (player) {
@@ -898,6 +998,8 @@ showSpectatorMessage() {
         this.ui.updateAllPlayersStatus(this.players);
       }
     });
+
+    // --- PLAYER DISCONNECTION EVENTS ---
     this.socketManager.on("playerDisconnected", (data) => {
       const player = this.players.get(data.playerId);
       if (player && player.element) {
@@ -906,14 +1008,17 @@ showSpectatorMessage() {
       this.players.delete(data.playerId);
     });
 
+    // --- GAME OVER EVENTS ---
     this.socketManager.on("gameOver", (data) => {
       this.handleGameOver(data.leaderboard, data.winner);
     });
 
+    // --- GAME RESET EVENTS ---
     this.socketManager.on("gameReset", (message) => {
       this.handleGameReset(message);
     });
 
+    // --- PLAYER ELIMINATION EVENTS ---
     this.socketManager.on("playerEliminated", (data) => {
       this.handlePlayerEliminated(data);
     });
