@@ -182,46 +182,43 @@ export class Main {
     }
   }
 
-  renderGame(gameData) {
-    this.container.innerHTML = "";
+renderGame(gameData) {
+  this.container.innerHTML = "";
 
-    const gameLayout = document.createElement("div");
-    gameLayout.className = "game-layout";
+  // Create the game layout using VNode
+  const gameLayout = new VNode("div", { class: "game-layout" }, [
+    new VNode("div", { class: "game-area" }, [
+      new VNode("div", { class: "banner" }, [
+        new VNode("img", { 
+          src: "../media/baner.png", 
+          alt: "notFound" 
+        })
+      ]),
+      new VNode("div", { 
+        id: "gameMapContainer", 
+        class: "map-container" 
+      }),
+      new VNode("div", { 
+        id: "playerStatusArea", 
+        class: "status-container" 
+      })
+    ]),
+    new VNode("div", { 
+      id: "chatContainer", 
+      class: "chat-container" 
+    })
+  ]);
 
-    const gameArea = document.createElement("div");
-    gameArea.className = "game-area";
-    const baner = document.createElement("div");
-    baner.className = "banner";
-    const img = document.createElement("img");
-    img.src = "../media/baner.png";
-    img.alt = "notFound";
-    baner.appendChild(img);
-    gameArea.appendChild(baner);
+  // Render the VNode to actual DOM and append to container
+  this.container.appendChild(gameLayout.render());
 
-    const mapContainer = document.createElement("div");
-    mapContainer.id = "gameMapContainer";
-    mapContainer.className = "map-container";
-    gameArea.appendChild(mapContainer);
+  // Initialize managers and game
+  const chatContainer = document.getElementById("chatContainer");
+  this.chatManager = new ChatManager(chatContainer, this.socketManager);
 
-    const statusContainer = document.createElement("div");
-    statusContainer.id = "playerStatusArea";
-    statusContainer.className = "status-container";
-    gameArea.appendChild(statusContainer);
+  this.game = new BombermanGame(this.socketManager, gameData);
+  this.game.init();
 
-    gameLayout.appendChild(gameArea);
-
-    const chatContainer = document.createElement("div");
-    chatContainer.id = "chatContainer";
-    chatContainer.className = "chat-container";
-    gameLayout.appendChild(chatContainer);
-
-    this.container.appendChild(gameLayout);
-
-    this.chatManager = new ChatManager(chatContainer, this.socketManager);
-
-    this.game = new BombermanGame(this.socketManager, gameData);
-    this.game.init();
-
-    console.log("Game initialized with data:", gameData);
-  }
+  console.log("Game initialized with data:", gameData);
 }
+} 
