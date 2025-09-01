@@ -15,7 +15,6 @@ export class GameConstants {
         SPEED_POWERUP: 6,   // Increases player movement speed
         BOMB: 7             // Active bomb placement marker
     };
-
     // =============================================================================
     // STEP 3: VISUAL CONSTANTS (EXECUTED THIRD - RENDERING SPECIFICATIONS)
     // =============================================================================
