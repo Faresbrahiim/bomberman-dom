@@ -224,3 +224,4 @@ function createDOMNode(vnode) {
   // return the element with children
   return el;
 }
+export { updateElement };

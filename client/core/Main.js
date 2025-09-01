@@ -1,4 +1,6 @@
 import { VNode } from "../framework/vdom.js";
+import { updateElement } from "../framework/VDOMmanager.js";
+
 import { SocketManager } from "./SocketManager.js";
 import { ChatManager } from "./ChatManager.js";
 import { BombermanGame } from "../game/bomber.js";
@@ -171,55 +173,63 @@ export class Main {
   }
 
   renderCountdown(seconds) {
-    const countdownEl = document.getElementById("countdown");
-    if (countdownEl) {
-      if (seconds > 0) {
-        countdownEl.innerHTML = `<h3 class="countdown-timer">Game starts in: ${seconds}s</h3>`;
-      } else {
-        countdownEl.innerHTML =
-          '<h3 class="countdown-start">Game Starting!</h3>';
-      }
-    }
+    const countdownContainer = document.getElementById("countdown"); // match the VNode id
+    if (!countdownContainer) return;
+
+    const countdownVNode = new VNode(
+      "div",
+      { id: "countdown" },
+      [
+        seconds > 0
+          ? new VNode("h3", { class: "countdown-timer" }, [
+            `Game starts in: ${seconds}s`,
+          ])
+          : new VNode("h3", { class: "countdown-start" }, ["Game Starting!"]),
+      ]
+    );
+
+    updateElement(countdownContainer, countdownVNode, this.oldCountdownVNode);
+    this.oldCountdownVNode = countdownVNode;
   }
 
-renderGame(gameData) {
-  this.container.innerHTML = "";
+  renderGame(gameData) {
+    this.container.innerHTML = "";
 
-  // Create the game layout using VNode
-  const gameLayout = new VNode("div", { class: "game-layout" }, [
-    new VNode("div", { class: "game-area" }, [
-      new VNode("div", { class: "banner" }, [
-        new VNode("img", { 
-          src: "../media/baner.png", 
-          alt: "notFound" 
+    // Create the game layout using VNode
+    const gameLayout = new VNode("div", { class: "game-layout" }, [
+      new VNode("div", { class: "game-area" }, [
+        new VNode("div", { class: "banner" }, [
+          new VNode("img", {
+            src: "../media/baner.png",
+            alt: "notFound"
+          })
+        ]),
+        new VNode("div", {
+          id: "gameMapContainer",
+          class: "map-container"
+        }),
+        new VNode("div", {
+          id: "playerStatusArea",
+          class: "status-container"
         })
       ]),
-      new VNode("div", { 
-        id: "gameMapContainer", 
-        class: "map-container" 
-      }),
-      new VNode("div", { 
-        id: "playerStatusArea", 
-        class: "status-container" 
+      new VNode("div", {
+        id: "chatContainer",
+        class: "chat-container"
       })
-    ]),
-    new VNode("div", { 
-      id: "chatContainer", 
-      class: "chat-container" 
-    })
-  ]);
+    ]);
 
-  // Render the VNode to actual DOM and append to container
-  const renderedElement = gameLayout.render();
-  this.container.appendChild(renderedElement);
+    // Render the VNode to actual DOM and append to container
+    const renderedElement = gameLayout.render();
+    this.container.appendChild(renderedElement);
 
-  // Get chat container from the rendered element instead of DOM query
-  const chatContainer = renderedElement.querySelector("#chatContainer");
-  this.chatManager = new ChatManager(chatContainer, this.socketManager);
+    // Get chat container from the rendered element instead of DOM query
+    const chatContainer = renderedElement.querySelector("#chatContainer");
+    this.chatManager = new ChatManager(chatContainer, this.socketManager);
 
-  this.game = new BombermanGame(this.socketManager, gameData);
-  this.game.init();
+    this.game = new BombermanGame(this.socketManager, gameData);
+    this.game.init();
 
-  console.log("Game initialized with data:", gameData);
-}
+    console.log("Game initialized with data:", gameData);
+  }
 } 
