@@ -12,7 +12,7 @@ export class BombermanGame {
     this.socketManager = socketManager;
     this.seed = gameData.seed;
     this.localPlayerId = socketManager.playerId;
-
+    this.takeDamage = false;
     // framework
     this.eventRegistry = eventRegistry;
     this.vdom = vdom;
@@ -91,8 +91,8 @@ export class BombermanGame {
           ref: "game-keyboard-input",
           type: "hidden",
           "data-game-input": "true",
-          style: "position:absolute;left:-9999px;"
-        })
+          style: "position:absolute;left:-9999px;",
+        }),
       ]
     );
 
@@ -110,7 +110,7 @@ export class BombermanGame {
     this.vdom.mount(); // initial paint
 
     this.inputHandler.enable();
-    
+
     // Focus the game input element through framework
     this.focusGameInput();
 
@@ -153,12 +153,12 @@ export class BombermanGame {
     overlay.id = overlayId;
     overlay.className = overlayClass;
     overlay.innerHTML = content;
-    
+
     container.appendChild(overlay);
-    
+
     // Register with framework for future reference
     this.vdom.registerRef(overlayId, overlay);
-    
+
     return overlay;
   }
 
@@ -543,14 +543,8 @@ export class BombermanGame {
       }
     });
 
-    this.handleExplosionCells(cells);
     this.socketManager.sendBombExploded(bombId, cells);
-    this.players.forEach((p) => {
-      const g = p.getGridPosition();
-      if (g.x === x && g.y === y && p.isLocal) {
-        this.socketManager.sendPlayerDied();
-      }
-    });
+
     this.requestRender();
   }
 
@@ -561,6 +555,7 @@ export class BombermanGame {
       this.activeBombs.delete(bombId);
     }
     this.handleExplosionCells(cells);
+    this.takeDamage = false;
     this.requestRender();
   }
 
@@ -573,6 +568,13 @@ export class BombermanGame {
     console.log(this.players);
 
     const type = this.currentMap[y][x];
+    this.players.forEach((p) => {
+      const g = p.getGridPosition();
+      if (g.x === x && g.y === y && p.isLocal && !this.takeDamage) {
+        this.takeDamage = true;
+        this.socketManager.sendPlayerDied();
+      }
+    });
     if (type === GameConstants.CELL_TYPES.DESTRUCTIBLE) {
       this.destroyWall(x, y);
     } else if (type === GameConstants.CELL_TYPES.BOMB) {
@@ -597,7 +599,9 @@ export class BombermanGame {
       // Find the cell element through the framework
       const gameContainer = this.getGameMapContainer();
       if (gameContainer) {
-        const cell = gameContainer.querySelector(`[data-x="${x}"][data-y="${y}"]`);
+        const cell = gameContainer.querySelector(
+          `[data-x="${x}"][data-y="${y}"]`
+        );
         if (cell) {
           cell.classList.add("flame");
           setTimeout(() => {
@@ -644,7 +648,7 @@ export class BombermanGame {
       <h3>SPECTATOR MODE</h3>
       <p>You have been eliminated. Watch the remaining players!</p>
     </div>`;
-    
+
     this.createOverlay("spectatorOverlay", "spectator-overlay", overlayContent);
   }
 
