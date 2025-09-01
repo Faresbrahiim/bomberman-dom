@@ -8,11 +8,12 @@ import { VDOMManager } from "../framework/VDOMmanager.js";
 import { VNode } from "../framework/vdom.js";
 // Main multiplayer game class
 export class BombermanGame {
-  constructor(socketManager, gameData) {
+  constructor(socketManager, gameData, mapContainer) {
     this.socketManager = socketManager;
     this.seed = gameData.seed;
     this.players = new Map();
     this.localPlayerId = socketManager.playerId;
+    this.mapContainer = mapContainer; // <--- store this real DOM element
 
     this.inputHandler = new InputHandler();
     this.ui = new GameUI();
@@ -48,97 +49,113 @@ export class BombermanGame {
     });
   }
 
- init() {
-  this.generateMap();
-  this.createPlayerElements();
+  init() {
+    this.generateMap();
+    this.createPlayerElements();
 
-  // Setup VDOM manager for overlays
-  const container = document.getElementById("gameMapContainer");
-  this.vdomManager = new VDOMManager(
-    container,
-    (state, setState) => this.renderUI(state, setState),
-    { gameOver: false, leaderboard: [], winner: null, spectator: false }
-  );
-  this.vdomManager.mount();
-
-  this.gameLoop();
-}
-renderUI(state, setState) {
-  const overlays = [];
-
-  if (state.spectator) {
-    overlays.push(
-      new VNode("div", { id: "spectatorOverlay", class: "spectator-overlay" }, [
-        new VNode("div", { class: "spectator-message" }, [
-          new VNode("h3", {}, ["SPECTATOR MODE"]),
-          new VNode("p", {}, ["You have been eliminated. Watch the remaining players!"])
-        ])
-      ])
+    // Use the real DOM element
+    this.vdomManager = new VDOMManager(
+      this.mapContainer,
+      (state, setState) => this.renderUI(state, setState),
+      {
+        gameOver: false,
+        leaderboard: [],
+        winner: null,
+        spectator: false,
+        map: this.currentMap,
+        players: Array.from(this.players.values()),
+        bombs: Array.from(this.activeBombs.values())
+      }
     );
+
+    this.vdomManager.mount();
+    this.gameLoop();
   }
 
-  if (state.gameOver) {
-    const leaderboardRows = state.leaderboard.map((player) =>
-      new VNode("div", { class: `leaderboard-row rank-${player.rank}` }, [
-        new VNode("span", { class: "rank" }, [
-          `${this.getRankIcon(player.rank)} ${player.rank}${this.getOrdinalSuffix(player.rank)}`
-        ]),
-        new VNode("span", { class: "nickname" }, [player.nickname]),
-        new VNode("span", { class: "lives" }, [
-          player.lives > 0 ? ` (${player.lives} lives)` : " (Eliminated)"
-        ])
-      ])
-    );
+  renderUI(state, setState) {
+    const overlays = [];
 
-    overlays.push(
-      new VNode("div", { id: "gameOverOverlay", class: "game-over-overlay" }, [
-        new VNode("div", { class: "game-over-content" }, [
-          new VNode("h1", { class: "game-over-title" }, ["Game Over"]),
-          new VNode("h2", { class: "game-over-winner" }, [
-            state.winner ? `${state.winner.nickname} Wins!` : "No Winner"
-          ]),
-          new VNode("h3", { class: "leaderboard-title" }, ["Final Rankings"]),
-          new VNode("div", { class: "leaderboard-list" }, leaderboardRows),
-          new VNode("p", { class: "return-lobby-message" }, [
-            "Press Ctrl + R to restart GAME"
+    if (state.spectator) {
+      overlays.push(
+        new VNode("div", { id: "spectatorOverlay", class: "spectator-overlay" }, [
+          new VNode("div", { class: "spectator-message" }, [
+            new VNode("h3", {}, ["SPECTATOR MODE"]),
+            new VNode("p", {}, ["You have been eliminated. Watch the remaining players!"])
           ])
         ])
-      ])
-    );
-  }
-
-  // Wrap overlays in container
-  return new VNode("div", { id: "overlayRoot" }, overlays);
-}
-
-  createPlayerElements() {
-    const gameContainer = document.getElementById("gameMapContainer");
-    if (!gameContainer) {
-      console.error("Game container not found!");
-      return;
+      );
     }
 
-    this.players.forEach((player, playerId) => {
-      const playerElement = document.createElement("div");
-      playerElement.id = `player-${playerId}`;
-      playerElement.className = `player ${
-        player.isLocal ? "local-player" : "remote-player"
-      }`;
-      playerElement.style.position = "absolute";
-      playerElement.style.width = GameConstants.TILE_SIZE + "px";
-      playerElement.style.height = GameConstants.TILE_SIZE + "px";
-      playerElement.style.zIndex = "10";
+    if (state.gameOver) {
+      const leaderboardRows = state.leaderboard.map((player) =>
+        new VNode("div", { class: `leaderboard-row rank-${player.rank}` }, [
+          new VNode("span", { class: "rank" }, [
+            `${this.getRankIcon(player.rank)} ${player.rank}${this.getOrdinalSuffix(player.rank)}`
+          ]),
+          new VNode("span", { class: "nickname" }, [player.nickname]),
+          new VNode("span", { class: "lives" }, [
+            player.lives > 0 ? ` (${player.lives} lives)` : " (Eliminated)"
+          ])
+        ])
+      );
 
-      gameContainer.appendChild(playerElement);
-      player.setElement(playerElement);
-      player.updateElementPosition();
+      overlays.push(
+        new VNode("div", { id: "gameOverOverlay", class: "game-over-overlay" }, [
+          new VNode("div", { class: "game-over-content" }, [
+            new VNode("h1", { class: "game-over-title" }, ["Game Over"]),
+            new VNode("h2", { class: "game-over-winner" }, [
+              state.winner ? `${state.winner.nickname} Wins!` : "No Winner"
+            ]),
+            new VNode("h3", { class: "leaderboard-title" }, ["Final Rankings"]),
+            new VNode("div", { class: "leaderboard-list" }, leaderboardRows),
+            new VNode("p", { class: "return-lobby-message" }, [
+              "Press Ctrl + R to restart GAME"
+            ])
+          ])
+        ])
+      );
+    }
 
-      // Initialize sprite for remote players
-      if (!player.isLocal) {
-        player.updateAnimation(0, 0); // Set initial sprite
-      }
-    });
+    // Wrap overlays in container
+    return new VNode("div", { id: "overlayRoot" }, overlays);
   }
+
+createPlayerElements() {
+  if (!this.mapContainer) {
+    console.error("Game container not found!");
+    return;
+  }
+
+  // Create an array of VNodes for all players
+  const playerNodes = Array.from(this.players.values()).map((player) => {
+    return new VNode(
+      "div",
+      {
+        id: `player-${player.playerId}`,
+        class: `player ${player.isLocal ? "local-player" : "remote-player"}`,
+        style: `position:absolute;width:${GameConstants.TILE_SIZE}px;height:${GameConstants.TILE_SIZE}px;z-index:10;`,
+      },
+      []
+    );
+  });
+
+  // Render all player VNodes and attach them to the map container
+  playerNodes.forEach((vnode, index) => {
+    const rendered = vnode.render();
+    this.mapContainer.appendChild(rendered);
+
+    const player = Array.from(this.players.values())[index];
+    player.setElement(rendered);
+    player.updateElementPosition();
+
+    if (!player.isLocal) {
+      player.updateAnimation(0, 0); // initial sprite for remote players
+    }
+  });
+}
+
+
+
 
   generateMap() {
     const generator = new BombermanMapGenerator(
@@ -218,7 +235,7 @@ renderUI(state, setState) {
     ) {
       const gridY = Math.floor(
         (localPlayer.position.y + GameConstants.TILE_SIZE / 2) /
-          GameConstants.TILE_SIZE
+        GameConstants.TILE_SIZE
       );
       const laneCenterY = gridY * GameConstants.TILE_SIZE;
 
@@ -239,7 +256,7 @@ renderUI(state, setState) {
     ) {
       const gridX = Math.floor(
         (localPlayer.position.x + GameConstants.TILE_SIZE / 2) /
-          GameConstants.TILE_SIZE
+        GameConstants.TILE_SIZE
       );
       const laneCenterX = gridX * GameConstants.TILE_SIZE;
 
@@ -393,11 +410,14 @@ renderUI(state, setState) {
       player.collectPowerup(cellType);
       this.currentMap[gridPos.y][gridPos.x] = GameConstants.CELL_TYPES.EMPTY;
 
-      const cellElement = document.querySelector(
-        `[data-x="${gridPos.x}"][data-y="${gridPos.y}"]`
-      );
-      if (cellElement) {
-        cellElement.className = "cell empty";
+      // Use this.mapContainer instead of document
+      if (this.mapContainer) {
+        const cellElement = this.mapContainer.querySelector(
+          `[data-x="${gridPos.x}"][data-y="${gridPos.y}"]`
+        );
+        if (cellElement) {
+          cellElement.className = "cell empty";
+        }
       }
 
       this.ui.updateAllPlayersStatus(this.players);
@@ -407,22 +427,26 @@ renderUI(state, setState) {
     }
   }
 
+
   handlePowerupCollected(playerId, position, powerupType) {
     const player = this.players.get(playerId);
     if (player) {
       player.collectPowerup(powerupType);
       this.currentMap[position.y][position.x] = GameConstants.CELL_TYPES.EMPTY;
 
-      const cellElement = document.querySelector(
-        `[data-x="${position.x}"][data-y="${position.y}"]`
-      );
-      if (cellElement) {
-        cellElement.className = "cell empty";
+      if (this.mapContainer) {
+        const cellElement = this.mapContainer.querySelector(
+          `[data-x="${position.x}"][data-y="${position.y}"]`
+        );
+        if (cellElement) {
+          cellElement.className = "cell empty";
+        }
       }
 
       this.ui.updateAllPlayersStatus(this.players);
     }
   }
+
 
   placeBomb() {
     const localPlayer = this.players.get(this.localPlayerId);
@@ -454,16 +478,18 @@ renderUI(state, setState) {
   }
 
   placeBombAt(position, bombId, playerId) {
-    const bomb = new Bomb(position.x, position.y, bombId, playerId);
-    this.currentMap[position.y][position.x] = GameConstants.CELL_TYPES.BOMB;
-    this.activeBombs.set(bombId, bomb);
+  const bomb = new Bomb(position.x, position.y, bombId, playerId);
+  this.currentMap[position.y][position.x] = GameConstants.CELL_TYPES.BOMB;
+  this.activeBombs.set(bombId, bomb);
 
-    // Only local player gets pass-through
-    if (playerId === this.localPlayerId) {
-      this.passThroughBombs.add(`${position.x},${position.y}`);
-    }
+  // Only local player gets pass-through
+  if (playerId === this.localPlayerId) {
+    this.passThroughBombs.add(`${position.x},${position.y}`);
+  }
 
-    const cellElement = document.querySelector(
+  // Use the map container instead of the global document
+  if (this.mapContainer) {
+    const cellElement = this.mapContainer.querySelector(
       `[data-x="${position.x}"][data-y="${position.y}"]`
     );
     if (cellElement) {
@@ -471,12 +497,13 @@ renderUI(state, setState) {
       // Set the bomb element for animation
       bomb.setElement(cellElement);
     }
-
-    // Only the bomb owner handles the explosion timing
-    if (playerId === this.localPlayerId) {
-      bomb.startTimer((x, y) => this.explodeBomb(x, y, bombId));
-    }
   }
+
+  // Only the bomb owner handles the explosion timing
+  if (playerId === this.localPlayerId) {
+    bomb.startTimer((x, y) => this.explodeBomb(x, y, bombId));
+  }
+}
 
   explodeBomb(x, y, bombId) {
     const bomb = this.activeBombs.get(bombId);
@@ -544,140 +571,150 @@ renderUI(state, setState) {
     });
   }
 
-  handleExplosionAt(x, y) {
-    const cellElement = document.querySelector(
-      `[data-x="${x}"][data-y="${y}"]`
-    );
-    const cellType = this.currentMap[y][x];
+ handleExplosionAt(x, y) {
+  if (!this.mapContainer) return;
 
-    // Check if any player is hit
-    this.players.forEach((player) => {
-      const playerGridPos = player.getGridPosition();
-      if (playerGridPos.x === x && playerGridPos.y === y) {
-        if (player.isLocal) {
-          this.handlePlayerDeath(player.playerId)
-        }
-      }
-    });
+  const cellElement = this.mapContainer.querySelector(
+    `[data-x="${x}"][data-y="${y}"]`
+  );
+  const cellType = this.currentMap[y][x];
 
-    if (cellType === GameConstants.CELL_TYPES.DESTRUCTIBLE) {
-      this.destroyWall(x, y);
-    } else if (cellType === GameConstants.CELL_TYPES.BOMB) {
-      // Handle chain explosion
-      const chainBomb = Array.from(this.activeBombs.values()).find(
-        (b) => b.x === x && b.y === y && !b.exploded
-      );
-      if (chainBomb) {
-        // Trigger chain explosion with slight delay for visual effect
-        setTimeout(() => {
-          if (this.activeBombs.has(chainBomb.bombId) && !chainBomb.exploded) {
-            this.explodeBomb(chainBomb.x, chainBomb.y, chainBomb.bombId);
-          }
-        }, 100);
+  // Check if any player is hit
+  this.players.forEach((player) => {
+    const playerGridPos = player.getGridPosition();
+    if (playerGridPos.x === x && playerGridPos.y === y) {
+      if (player.isLocal) {
+        this.handlePlayerDeath(player.playerId);
       }
     }
+  });
 
-    // Visual flame effect (rest of the method remains the same)
-    if (cellElement) {
+  if (cellType === GameConstants.CELL_TYPES.DESTRUCTIBLE) {
+    this.destroyWall(x, y);
+  } else if (cellType === GameConstants.CELL_TYPES.BOMB) {
+    // Handle chain explosion
+    const chainBomb = Array.from(this.activeBombs.values()).find(
+      (b) => b.x === x && b.y === y && !b.exploded
+    );
+    if (chainBomb) {
+      setTimeout(() => {
+        if (this.activeBombs.has(chainBomb.bombId) && !chainBomb.exploded) {
+          this.explodeBomb(chainBomb.x, chainBomb.y, chainBomb.bombId);
+        }
+      }, 100);
+    }
+  }
+
+  // Visual flame effect
+  if (cellElement) {
+    cellElement.style.backgroundImage = "";
+    cellElement.style.backgroundPosition = "";
+    cellElement.style.backgroundSize = "";
+
+    cellElement.classList.add("flame");
+    setTimeout(() => {
+      const finalCellType = this.currentMap[y][x];
+      cellElement.className = "cell";
+
       cellElement.style.backgroundImage = "";
       cellElement.style.backgroundPosition = "";
       cellElement.style.backgroundSize = "";
 
-      cellElement.classList.add("flame");
-      setTimeout(() => {
-        const finalCellType = this.currentMap[y][x];
-        cellElement.className = "cell";
-
-        cellElement.style.backgroundImage = "";
-        cellElement.style.backgroundPosition = "";
-        cellElement.style.backgroundSize = "";
-
-        switch (finalCellType) {
-          case GameConstants.CELL_TYPES.EMPTY:
-            cellElement.classList.add("empty");
-            break;
-          case GameConstants.CELL_TYPES.PLAYER_SPAWN:
-            cellElement.classList.add("player-spawn");
-            break;
-          case GameConstants.CELL_TYPES.BOMB_POWERUP:
-            cellElement.classList.add("bomb-powerup");
-            break;
-          case GameConstants.CELL_TYPES.FLAME_POWERUP:
-            cellElement.classList.add("flame-powerup");
-            break;
-          case GameConstants.CELL_TYPES.SPEED_POWERUP:
-            cellElement.classList.add("speed-powerup");
-            break;
-          default:
-            cellElement.classList.add("empty");
-            break;
-        }
-      }, GameConstants.FLAME_DURATION);
-    }
-  }
-  destroyWall(x, y) {
-    const cell = document.querySelector(`[data-x="${x}"][data-y="${y}"]`);
-    if (
-      !cell ||
-      !this.currentMap[y] ||
-      this.currentMap[y][x] !== GameConstants.CELL_TYPES.DESTRUCTIBLE
-    ) {
-      return;
-    }
-
-    const key = `${x},${y}`;
-    let powerupRevealed = null;
-
-    if (this.hiddenPowerups.has(key)) {
-      const powerupType = this.hiddenPowerups.get(key);
-      this.hiddenPowerups.delete(key);
-      this.currentMap[y][x] = powerupType;
-      powerupRevealed = powerupType;
-
-      cell.className = "cell";
-      switch (powerupType) {
+      switch (finalCellType) {
+        case GameConstants.CELL_TYPES.EMPTY:
+          cellElement.classList.add("empty");
+          break;
+        case GameConstants.CELL_TYPES.PLAYER_SPAWN:
+          cellElement.classList.add("player-spawn");
+          break;
         case GameConstants.CELL_TYPES.BOMB_POWERUP:
-          cell.classList.add("bomb-powerup");
+          cellElement.classList.add("bomb-powerup");
           break;
         case GameConstants.CELL_TYPES.FLAME_POWERUP:
-          cell.classList.add("flame-powerup");
+          cellElement.classList.add("flame-powerup");
           break;
         case GameConstants.CELL_TYPES.SPEED_POWERUP:
-          cell.classList.add("speed-powerup");
+          cellElement.classList.add("speed-powerup");
+          break;
+        default:
+          cellElement.classList.add("empty");
           break;
       }
-    } else {
-      this.currentMap[y][x] = GameConstants.CELL_TYPES.EMPTY;
-      cell.className = "cell empty";
-    }
-
-    // Notify other players about wall destruction
-    this.socketManager.sendWallDestroyed({ x, y }, powerupRevealed);
+    }, GameConstants.FLAME_DURATION);
   }
+}
+
+ destroyWall(x, y) {
+  if (!this.mapContainer || !this.currentMap[y]) return;
+
+  const cell = this.mapContainer.querySelector(
+    `[data-x="${x}"][data-y="${y}"]`
+  );
+
+  if (!cell || this.currentMap[y][x] !== GameConstants.CELL_TYPES.DESTRUCTIBLE) {
+    return;
+  }
+
+  const key = `${x},${y}`;
+  let powerupRevealed = null;
+
+  if (this.hiddenPowerups.has(key)) {
+    const powerupType = this.hiddenPowerups.get(key);
+    this.hiddenPowerups.delete(key);
+    this.currentMap[y][x] = powerupType;
+    powerupRevealed = powerupType;
+
+    cell.className = "cell";
+    switch (powerupType) {
+      case GameConstants.CELL_TYPES.BOMB_POWERUP:
+        cell.classList.add("bomb-powerup");
+        break;
+      case GameConstants.CELL_TYPES.FLAME_POWERUP:
+        cell.classList.add("flame-powerup");
+        break;
+      case GameConstants.CELL_TYPES.SPEED_POWERUP:
+        cell.classList.add("speed-powerup");
+        break;
+    }
+  } else {
+    this.currentMap[y][x] = GameConstants.CELL_TYPES.EMPTY;
+    cell.className = "cell empty";
+  }
+
+  // Notify other players about wall destruction
+  this.socketManager.sendWallDestroyed({ x, y }, powerupRevealed);
+}
+
 
   handleWallDestroyed(position, powerupRevealed) {
-    const { x, y } = position;
-    const cell = document.querySelector(`[data-x="${x}"][data-y="${y}"]`);
+  const { x, y } = position;
+  if (!this.mapContainer || !this.currentMap[y]) return;
 
-    if (powerupRevealed) {
-      this.currentMap[y][x] = powerupRevealed;
-      cell.className = "cell";
-      switch (powerupRevealed) {
-        case GameConstants.CELL_TYPES.BOMB_POWERUP:
-          cell.classList.add("bomb-powerup");
-          break;
-        case GameConstants.CELL_TYPES.FLAME_POWERUP:
-          cell.classList.add("flame-powerup");
-          break;
-        case GameConstants.CELL_TYPES.SPEED_POWERUP:
-          cell.classList.add("speed-powerup");
-          break;
-      }
-    } else {
-      this.currentMap[y][x] = GameConstants.CELL_TYPES.EMPTY;
-      cell.className = "cell empty";
+  const cell = this.mapContainer.querySelector(
+    `[data-x="${x}"][data-y="${y}"]`
+  );
+  if (!cell) return;
+
+  if (powerupRevealed) {
+    this.currentMap[y][x] = powerupRevealed;
+    cell.className = "cell";
+    switch (powerupRevealed) {
+      case GameConstants.CELL_TYPES.BOMB_POWERUP:
+        cell.classList.add("bomb-powerup");
+        break;
+      case GameConstants.CELL_TYPES.FLAME_POWERUP:
+        cell.classList.add("flame-powerup");
+        break;
+      case GameConstants.CELL_TYPES.SPEED_POWERUP:
+        cell.classList.add("speed-powerup");
+        break;
     }
+  } else {
+    this.currentMap[y][x] = GameConstants.CELL_TYPES.EMPTY;
+    cell.className = "cell empty";
   }
+}
+
 
   enableSpectatorMode() {
     // Disable input but keep game loop running for spectating
@@ -693,11 +730,11 @@ renderUI(state, setState) {
     }
   }
 
-showSpectatorMessage() {
-  if (this.vdomManager) {
-    this.vdomManager.setState({ spectator: true });
+  showSpectatorMessage() {
+    if (this.vdomManager) {
+      this.vdomManager.setState({ spectator: true });
+    }
   }
-}
 
 
   handlePlayerEliminated(data) {
@@ -730,35 +767,35 @@ showSpectatorMessage() {
   }
 
   handleGameReset(message) {
-  // Reset state
-  if (this.vdomManager) {
-    this.vdomManager.setState({ gameOver: false, spectator: false, leaderboard: [], winner: null });
+    // Reset state
+    if (this.vdomManager) {
+      this.vdomManager.setState({ gameOver: false, spectator: false, leaderboard: [], winner: null });
+    }
+
+    // Reset game state as before...
+    this.activeBombs.clear();
+    this.passThroughBombs.clear();
+    this.players.forEach((player) => {
+      player.lives = 3;
+      player.powerups = { bombs: 0, flames: 0, speed: 0 };
+      player.removeDeadPlayerEffect();
+    });
+    this.inputHandler.enable();
+    this.generateMap();
+
+    if (this.chatManager) {
+      this.chatManager.addSystemMessage(message);
+    }
+    if (!this.animationFrameId) {
+      this.gameLoop();
+    }
   }
 
-  // Reset game state as before...
-  this.activeBombs.clear();
-  this.passThroughBombs.clear();
-  this.players.forEach((player) => {
-    player.lives = 3;
-    player.powerups = { bombs: 0, flames: 0, speed: 0 };
-    player.removeDeadPlayerEffect();
-  });
-  this.inputHandler.enable();
-  this.generateMap();
-
-  if (this.chatManager) {
-    this.chatManager.addSystemMessage(message);
+  showLeaderboard(leaderboard, winner) {
+    if (this.vdomManager) {
+      this.vdomManager.setState({ gameOver: true, leaderboard, winner });
+    }
   }
-  if (!this.animationFrameId) {
-    this.gameLoop();
-  }
-}
-
-showLeaderboard(leaderboard, winner) {
-  if (this.vdomManager) {
-    this.vdomManager.setState({ gameOver: true, leaderboard, winner });
-  }
-}
 
   getRankIcon(rank) {
     const icons = {
