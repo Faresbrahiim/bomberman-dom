@@ -1,4 +1,5 @@
 import { GameConstants } from "./constant.js";
+import { VNode } from "../framework/vdom.js";
 
 export class GameUI {
     constructor() {
@@ -6,12 +7,13 @@ export class GameUI {
     }
 
     injectPlayerCardStyles() {
-        // Check if styles are already injected
-        if (document.getElementById('player-card-styles')) return;
-        const style = document.createElement('style');
-        style.id = 'player-card-styles';
-        document.head.appendChild(style);
+        // Prevent duplicate style injection
+        if (this.playerCardStyleInjected) return;
+        const styleVNode = new VNode("style", { id: "player-card-styles" }, []);
+        document.head.appendChild(styleVNode.render());
+        this.playerCardStyleInjected = true;
     }
+
 
     updateAllPlayersStatus(players) {
         const statusArea = document.getElementById('playerStatusArea');
@@ -35,7 +37,7 @@ export class GameUI {
     createPlayerCard(player, playerId) {
         const playerCard = document.createElement('div');
         playerCard.className = `player-card ${player.isLocal ? 'local-player' : ''}`;
-        
+
         // Add eliminated class if player has no lives
         if (player.lives <= 0) {
             playerCard.classList.add('eliminated');
@@ -59,8 +61,8 @@ export class GameUI {
         playerHeader.className = 'player-header';
 
         const playerAvatar = document.createElement('div');
-        playerAvatar.className = `player-avatar player-${playerId }`;
-        playerAvatar.textContent = `P${playerId }`;
+        playerAvatar.className = `player-avatar player-${playerId}`;
+        playerAvatar.textContent = `P${playerId}`;
 
         const playerName = document.createElement('div');
         playerName.className = 'player-name';
@@ -83,7 +85,7 @@ export class GameUI {
         // Lives stat (full width)
         const livesContainer = document.createElement('div');
         livesContainer.className = 'stat-item lives-container';
-        
+
         const livesLabel = document.createElement('div');
         const livesIcon = document.createElement('span');
         livesIcon.className = 'stat-icon';
@@ -96,7 +98,7 @@ export class GameUI {
 
         const livesHearts = document.createElement('div');
         livesHearts.className = 'lives-hearts';
-        
+
         // Assuming max 3 lives, adjust as needed
         const maxLives = Math.max(3, player.lives);
         for (let i = 0; i < maxLives; i++) {
@@ -111,10 +113,10 @@ export class GameUI {
 
         // Bombs stat
         const bombsContainer = this.createStatItem('💣', 'Bombs', player.powerups.bombs, 'powerup-bombs');
-        
+
         // Flames stat
         const flamesContainer = this.createStatItem('🔥', 'Flames', player.powerups.flames, 'powerup-flames');
-        
+
         // Speed stat
         const speedContainer = this.createStatItem('⚡', 'Speed', player.powerups.speed, 'powerup-speed');
 
@@ -168,7 +170,7 @@ export class GameUI {
                 console.error('Game container not found!');
                 return;
             }
-            
+
             mapElement = document.createElement('div');
             mapElement.id = 'map';
             mapElement.style.display = 'grid';
