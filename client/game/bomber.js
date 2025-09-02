@@ -609,10 +609,11 @@ export class BombermanGame {
   handleBombExplosion(bombId, explosionCells) {
     const bomb = this.activeBombs.get(bombId);
     if (bomb) {
-      bomb.explode(); // This will stop the animation
+      bomb.explode();
       this.activeBombs.delete(bombId);
+      // ✅ ADD THIS LINE:
+      this.currentMap[bomb.y][bomb.x] = GameConstants.CELL_TYPES.EMPTY;
     }
-
     this.handleExplosionCells(explosionCells);
   }
 
@@ -929,7 +930,7 @@ export class BombermanGame {
 
   // --- SETUP ALL SOCKET EVENT LISTENERS ---
   setupSocketListeners() {
-    
+
     // --- PLAYER MOVEMENT EVENTS ---
     this.socketManager.on("playerMoved", (data) => {
       const player = this.players.get(data.playerId);
@@ -938,11 +939,9 @@ export class BombermanGame {
         player.gridPosition = data.gridPosition;
         player.updateElementPosition();
 
-        // Apply animation with movement data
         if (data.movement) {
           player.updateAnimation(data.movement.dx, data.movement.dy);
         } else {
-          // Stop animation if no movement data
           player.updateAnimation(0, 0);
         }
       }
@@ -1024,3 +1023,6 @@ export class BombermanGame {
     });
   }
 }
+
+
+
