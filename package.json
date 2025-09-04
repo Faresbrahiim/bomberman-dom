@@ -1,8 +1,9 @@
 {
   "name": "bomberman-dom",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "server/server.mjs",
   "scripts": {
+    "start": "node server/server.mjs",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
