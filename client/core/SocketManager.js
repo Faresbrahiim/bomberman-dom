@@ -14,15 +14,25 @@ export class SocketManager {
     // Store user identification data
     this.nickname = nickname;
     this.playerId = null; // Will be assigned by server
-    
+
     // Initialize event handling system
     this.eventHandlers = {};
-    
+
     // Create WebSocket connection to server
-    this.ws = new WebSocket("/");
+    // Detect correct protocol and host for WebSocket connection
+    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const host = window.location.host;
+
+    // For dev: if running on localhost, connect to port 3000
+    const url =
+      host.includes("localhost") || host.includes("127.0.0.1")
+        ? `${protocol}://localhost:3000`
+        : `${protocol}://${host}`;
+
+    this.ws = new WebSocket(url);
 
     // Setup WebSocket event handlers for connection lifecycle
-    
+
     // When the socket opens, send join message to backend
     this.ws.onopen = () => {
       this.send({ type: "join", nickname: this.nickname });
@@ -49,7 +59,7 @@ export class SocketManager {
   // =============================================================================
   // STEP 4: EVENT SYSTEM SETUP (EXECUTED ON DEMAND - EVENT REGISTRATION)
   // =============================================================================
-  
+
   // Register event listeners
   on(eventName, callback) {
     this.eventHandlers[eventName] = callback;
@@ -65,7 +75,7 @@ export class SocketManager {
   // =============================================================================
   // STEP 5: OUTBOUND COMMUNICATION (EXECUTED ON USER ACTIONS - CLIENT TO SERVER)
   // =============================================================================
-  
+
   // Send data to server
   send(data) {
     if (this.ws.readyState === WebSocket.OPEN) {
@@ -76,7 +86,7 @@ export class SocketManager {
   // =============================================================================
   // STEP 6: INBOUND MESSAGE HANDLING (EXECUTED ON SERVER MESSAGES - SERVER TO CLIENT)
   // =============================================================================
-  
+
   // Handle incoming messages and trigger appropriate events
   handleMessage(data) {
     switch (data.type) {
@@ -140,7 +150,7 @@ export class SocketManager {
       case "playerDisconnected":
         this.trigger("playerDisconnected", data);
         break;
-        
+
       case "gameOver":
         this.trigger("gameOver", {
           leaderboard: data.leaderboard,
@@ -173,7 +183,7 @@ export class SocketManager {
   // =============================================================================
   // STEP 7: GAME-SPECIFIC SENDERS (EXECUTED ON GAME ACTIONS - SPECIALIZED COMMUNICATION)
   // =============================================================================
-  
+
   // Chat message transmission
   sendChatMessage(message) {
     this.send({ type: "chat", message });
